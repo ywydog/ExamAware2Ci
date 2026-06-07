@@ -19,7 +19,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\ExamAware4Ci.Interface\ExamAware4Ci.Interface.csproj" />
+        <ProjectReference Include="..\ExamAware2Ci.Interface\ExamAware2Ci.Interface.csproj" />
     </ItemGroup>
 
     <ItemGroup>

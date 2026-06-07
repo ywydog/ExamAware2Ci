@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace ExamAware4Ci.Models.Automation;
+namespace ExamAware2Ci.Models.Automation;
 
 /// <summary>
 /// 考试时间剩余触发器设置

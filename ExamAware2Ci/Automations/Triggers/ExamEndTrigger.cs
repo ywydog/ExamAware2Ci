@@ -1,13 +1,13 @@
 using ClassIsland.Core.Abstractions.Automation;
 using ClassIsland.Core.Attributes;
-using ExamAware4Ci.Services;
+using ExamAware2Ci.Services;
 
-namespace ExamAware4Ci.Automations.Triggers;
+namespace ExamAware2Ci.Automations.Triggers;
 
 /// <summary>
 /// 当考试结束时触发
 /// </summary>
-[TriggerInfo("examaware4ci.triggers.examEnd", "考试结束时", "\uE894")]
+[TriggerInfo("examaware2ci.triggers.examEnd", "考试结束时", "\uE894")]
 public class ExamEndTrigger(ExamAwareConnectionService connectionService) : TriggerBase
 {
     private ExamAwareConnectionService ConnectionService { get; } = connectionService;
