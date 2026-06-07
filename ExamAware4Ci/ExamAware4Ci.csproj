@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>12</LangVersion>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <ClassIslandPluginSdkVersion>2.0.0.*</ClassIslandPluginSdkVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="ClassIsland.PluginSdk" Version="$(ClassIslandPluginSdkVersion)">
+            <ExcludeAssets>runtime; native</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\ExamAware4Ci.Interface\ExamAware4Ci.Interface.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="manifest.yml">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+</Project>
