@@ -1,6 +1,6 @@
-using ExamAware4Ci.Interface.Models;
+using ExamAware2Ci.Interface.Models;
 
-namespace ExamAware4Ci.Models;
+namespace ExamAware2Ci.Models;
 
 /// <summary>
 /// ExamAware2 WebSocket 考试事件消息

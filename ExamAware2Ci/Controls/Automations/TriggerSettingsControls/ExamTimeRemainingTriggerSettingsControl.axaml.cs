@@ -1,8 +1,8 @@
 using Avalonia.Controls;
 using ClassIsland.Core.Abstractions.Controls;
-using ExamAware4Ci.Models.Automation;
+using ExamAware2Ci.Models.Automation;
 
-namespace ExamAware4Ci.Controls.Automations.TriggerSettingsControls;
+namespace ExamAware2Ci.Controls.Automations.TriggerSettingsControls;
 
 /// <summary>
 /// 考试时间剩余触发器设置控件

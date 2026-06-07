@@ -1,13 +1,13 @@
 using ClassIsland.Core.Abstractions.Automation;
 using ClassIsland.Core.Attributes;
-using ExamAware4Ci.Services;
+using ExamAware2Ci.Services;
 
-namespace ExamAware4Ci.Automations.Triggers;
+namespace ExamAware2Ci.Automations.Triggers;
 
 /// <summary>
 /// 当进入考试放映时触发
 /// </summary>
-[TriggerInfo("examaware4ci.triggers.examPresentationStart", "进入考试放映时", "\uE7B8")]
+[TriggerInfo("examaware2ci.triggers.examPresentationStart", "进入考试放映时", "\uE7B8")]
 public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionService) : TriggerBase
 {
     private ExamAwareConnectionService ConnectionService { get; } = connectionService;

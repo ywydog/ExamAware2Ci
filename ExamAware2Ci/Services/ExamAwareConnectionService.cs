@@ -1,11 +1,11 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using ExamAware4Ci.Interface.Models;
-using ExamAware4Ci.Models;
+using ExamAware2Ci.Interface.Models;
+using ExamAware2Ci.Models;
 using Microsoft.Extensions.Logging;
 
-namespace ExamAware4Ci.Services;
+namespace ExamAware2Ci.Services;
 
 /// <summary>
 /// ExamAware2 WebSocket 连接服务

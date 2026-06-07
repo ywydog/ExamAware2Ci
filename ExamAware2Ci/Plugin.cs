@@ -1,13 +1,13 @@
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
-using ExamAware4Ci.Automations.Triggers;
-using ExamAware4Ci.Controls.Automations.TriggerSettingsControls;
-using ExamAware4Ci.Services;
+using ExamAware2Ci.Automations.Triggers;
+using ExamAware2Ci.Controls.Automations.TriggerSettingsControls;
+using ExamAware2Ci.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace ExamAware4Ci;
+namespace ExamAware2Ci;
 
 [PluginEntrance]
 public class Plugin : PluginBase

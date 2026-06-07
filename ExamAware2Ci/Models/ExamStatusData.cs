@@ -1,4 +1,4 @@
-namespace ExamAware4Ci.Models;
+namespace ExamAware2Ci.Models;
 
 /// <summary>
 /// 考试状态数据
