@@ -1,0 +1,26 @@
+<UserControl x:Class="ExamAware2Ci.Controls.Automations.ActionSettingsControls.PlayExamActionSettingsControl"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ci="http://classisland.tech/schemas/xaml/core"
+             xmlns:local="using:ExamAware2Ci.Controls.Automations.ActionSettingsControls"
+             mc:Ignorable="d">
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4"
+                DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=local:PlayExamActionSettingsControl}}">
+        <TextBlock VerticalAlignment="Center">放映</TextBlock>
+        <ComboBox VerticalAlignment="Center"
+                  SelectedIndex="{Binding Settings.SourceType}">
+            <ComboBoxItem>
+                <ci:IconText Glyph="&#xE71B;" Text="URL 链接"/>
+            </ComboBoxItem>
+            <ComboBoxItem>
+                <ci:IconText Glyph="&#xE8E5;" Text="本地文件"/>
+            </ComboBoxItem>
+        </ComboBox>
+        <TextBox VerticalAlignment="Center"
+                 Width="300"
+                 Watermark="输入 URL 或本地文件路径"
+                 Text="{Binding Settings.Source}" />
+    </StackPanel>
+</UserControl>

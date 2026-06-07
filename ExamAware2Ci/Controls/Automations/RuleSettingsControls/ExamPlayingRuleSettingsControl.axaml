@@ -1,0 +1,36 @@
+<ci:RuleSettingsControlBase x:Class="ExamAware2Ci.Controls.Automations.RuleSettingsControls.ExamPlayingRuleSettingsControl"
+                            x:TypeArguments="ruleSettings:ExamPlayingRuleSettings"
+                            xmlns="https://github.com/avaloniaui"
+                            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                            xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                            xmlns:local="using:ExamAware2Ci.Controls.Automations.RuleSettingsControls"
+                            xmlns:ruleSettings="using:ExamAware2Ci.Models.Automations.Rules"
+                            mc:Ignorable="d">
+    <ci:RuleSettingsControlBase.Resources>
+        <ScrollViewer x:Key="SettingsDrawer" x:Shared="False" Width="400"
+                      d:DataContext="{d:DesignInstance local:ExamPlayingRuleSettingsControl}">
+            <StackPanel Classes="animated-intro" Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <CheckBox IsChecked="{Binding Settings.FilterByExamName}" VerticalAlignment="Center">
+                        按考试名称筛选
+                    </CheckBox>
+                    <TextBox Text="{Binding Settings.ExamName}"
+                             IsVisible="{Binding Settings.FilterByExamName}"
+                             Watermark="输入考试名称"
+                             Width="200" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </ci:RuleSettingsControlBase.Resources>
+
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=local:ExamPlayingRuleSettingsControl}}">
+        <Button VerticalAlignment="Center" Theme="{StaticResource TransparentButton}"
+                Click="ButtonShowSettings_OnClick">
+            <ci:IconText Glyph="&#xEF27;" Text="打开设置…"
+                         Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+        </Button>
+    </StackPanel>
+</ci:RuleSettingsControlBase>

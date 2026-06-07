@@ -1,9 +1,14 @@
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
+using ExamAware2Ci.Automations.Actions;
 using ExamAware2Ci.Automations.Triggers;
+using ExamAware2Ci.Controls.Automations.ActionSettingsControls;
+using ExamAware2Ci.Controls.Automations.RuleSettingsControls;
 using ExamAware2Ci.Controls.Automations.TriggerSettingsControls;
+using ExamAware2Ci.Models.Automations.Rules;
 using ExamAware2Ci.Services;
+using ExamAware2Ci.Services.Automations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,6 +33,16 @@ public class Plugin : PluginBase
         services.AddTrigger<ExamTimeRemainingTrigger, ExamTimeRemainingTriggerSettingsControl>();
         services.AddTrigger<ExamEndTrigger>();
 
+        // 注册自动化行动
+        services.AddAction<PlayExamAction, PlayExamActionSettingsControl>();
+
+        // 注册规则集
+        services.AddRule<ExamPlayingRuleSettings, ExamPlayingRuleSettingsControl>(
+            "examaware2ci.rules.examPlaying", "正在考试时", "\uE7B8");
+
+        // 注册规则处理服务
+        services.AddSingleton<RuleHandlerService>();
+
         // 应用启动后启动连接
         AppBase.Current.AppStarted += (sender, args) =>
         {
@@ -50,6 +65,11 @@ public class Plugin : PluginBase
             };
 
             _ = connectionService.StartAsync();
+
+            // 初始化规则处理服务
+            var ruleHandlerService = IAppHost.GetService<RuleHandlerService>();
+            ruleHandlerService.Register();
+
             _logger?.LogInformation("[ExamAware2Ci]插件启动完成");
         };
 
