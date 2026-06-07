@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace ExamAware2Ci.Automations.Triggers;
 
 /// <summary>
-/// 当考试开始时触发
+/// 当考试开始时触发，考试结束时恢复
 /// </summary>
 [TriggerInfo("examaware2ci.triggers.examStart", "考试开始时", "\uE8DE")]
 public class ExamStartTrigger(ExamAwareConnectionService connectionService, ILogger<ExamStartTrigger> logger) : TriggerBase
@@ -17,12 +17,14 @@ public class ExamStartTrigger(ExamAwareConnectionService connectionService, ILog
     public override void Loaded()
     {
         ConnectionService.ExamStart += OnExamStart;
+        ConnectionService.ExamEnd += OnExamEnd;
         Logger.LogDebug("[ExamAware2Ci]触发器已加载: 考试开始时");
     }
 
     public override void UnLoaded()
     {
         ConnectionService.ExamStart -= OnExamStart;
+        ConnectionService.ExamEnd -= OnExamEnd;
         Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 考试开始时");
     }
 
@@ -30,5 +32,11 @@ public class ExamStartTrigger(ExamAwareConnectionService connectionService, ILog
     {
         Logger.LogInformation("[ExamAware2Ci]触发: 考试开始时 - {Name}", e.ExamName);
         Trigger();
+    }
+
+    private void OnExamEnd(object? sender, Interface.Models.ExamEventData e)
+    {
+        Logger.LogInformation("[ExamAware2Ci]恢复: 考试已结束 - {Name}", e.ExamName);
+        TriggerRevert();
     }
 }

@@ -32,6 +32,11 @@ public class ExamAwareConnectionService : IDisposable
     public event EventHandler<ExamEventData>? ExamPresentationStart;
 
     /// <summary>
+    /// 考试放映停止事件（用于触发器恢复）
+    /// </summary>
+    public event EventHandler<ExamEventData>? ExamPresentationStop;
+
+    /// <summary>
     /// 考试开始事件
     /// </summary>
     public event EventHandler<ExamEventData>? ExamStart;
@@ -42,7 +47,7 @@ public class ExamAwareConnectionService : IDisposable
     public event EventHandler<ExamEventData>? ExamTimeRemaining;
 
     /// <summary>
-    /// 考试结束事件
+    /// 考试结束事件（用于触发器恢复考试开始）
     /// </summary>
     public event EventHandler<ExamEventData>? ExamEnd;
 
@@ -115,12 +120,24 @@ public class ExamAwareConnectionService : IDisposable
             }
         }
 
-        _webSocket?.Dispose();
-        _webSocket = null;
+        CleanupWebSocket();
         _cts?.Dispose();
         _cts = null;
         SetConnected(false);
         _isSubscribed = false;
+    }
+
+    private void CleanupWebSocket()
+    {
+        if (_webSocket != null)
+        {
+            try
+            {
+                _webSocket.Dispose();
+            }
+            catch { /* ignore */ }
+            _webSocket = null;
+        }
     }
 
     private async Task RunConnectionLoop(CancellationToken ct)
@@ -129,6 +146,10 @@ public class ExamAwareConnectionService : IDisposable
         {
             try
             {
+                // 清理旧的 WebSocket 实例
+                CleanupWebSocket();
+                _isSubscribed = false;
+
                 _reconnectAttempt++;
                 _webSocket = new ClientWebSocket();
                 _logger.LogInformation("[ExamAware2Ci]正在连接 ExamAware2 (第 {Attempt} 次): {Url}", _reconnectAttempt, _serverUrl);
@@ -264,6 +285,10 @@ public class ExamAwareConnectionService : IDisposable
                         case "exam-presentation-start":
                             _logger.LogInformation("[ExamAware2Ci]考试放映开始: {Name} (配置: {Config})", eventMsg.Data.ExamName, eventMsg.Data.ExamConfigName);
                             ExamPresentationStart?.Invoke(this, eventMsg.Data);
+                            break;
+                        case "exam-presentation-stop":
+                            _logger.LogInformation("[ExamAware2Ci]考试放映停止: {Name}", eventMsg.Data.ExamName);
+                            ExamPresentationStop?.Invoke(this, eventMsg.Data);
                             break;
                         case "exam-start":
                             _logger.LogInformation("[ExamAware2Ci]考试开始: {Name} (开始: {Start}, 结束: {End})", eventMsg.Data.ExamName, eventMsg.Data.StartTime, eventMsg.Data.EndTime);

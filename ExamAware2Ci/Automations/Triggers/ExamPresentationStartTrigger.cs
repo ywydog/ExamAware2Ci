@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace ExamAware2Ci.Automations.Triggers;
 
 /// <summary>
-/// 当进入考试放映时触发
+/// 当进入考试放映时触发，放映停止时恢复
 /// </summary>
 [TriggerInfo("examaware2ci.triggers.examPresentationStart", "进入考试放映时", "\uE7B8")]
 public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionService, ILogger<ExamPresentationStartTrigger> logger) : TriggerBase
@@ -17,12 +17,14 @@ public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionS
     public override void Loaded()
     {
         ConnectionService.ExamPresentationStart += OnExamPresentationStart;
+        ConnectionService.ExamPresentationStop += OnExamPresentationStop;
         Logger.LogDebug("[ExamAware2Ci]触发器已加载: 进入考试放映时");
     }
 
     public override void UnLoaded()
     {
         ConnectionService.ExamPresentationStart -= OnExamPresentationStart;
+        ConnectionService.ExamPresentationStop -= OnExamPresentationStop;
         Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 进入考试放映时");
     }
 
@@ -30,5 +32,11 @@ public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionS
     {
         Logger.LogInformation("[ExamAware2Ci]触发: 进入考试放映时 - {Name}", e.ExamName);
         Trigger();
+    }
+
+    private void OnExamPresentationStop(object? sender, Interface.Models.ExamEventData e)
+    {
+        Logger.LogInformation("[ExamAware2Ci]恢复: 考试放映已停止 - {Name}", e.ExamName);
+        TriggerRevert();
     }
 }
