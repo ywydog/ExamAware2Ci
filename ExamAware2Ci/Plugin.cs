@@ -1,6 +1,8 @@
+using ClassIsland.Core;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
+using ClassIsland.Shared;
 using ExamAware2Ci.Automations.Actions;
 using ExamAware2Ci.Automations.Triggers;
 using ExamAware2Ci.Controls.Automations.ActionSettingsControls;
