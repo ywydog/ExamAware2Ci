@@ -37,6 +37,12 @@ public class RuleHandlerService
             Dispatcher.UIThread.Invoke(() => _rulesetService.NotifyStatusChanged());
         };
 
+        _connectionService.ExamStart += (sender, e) =>
+        {
+            _logger.LogTrace("考试开始，刷新规则集");
+            Dispatcher.UIThread.Invoke(() => _rulesetService.NotifyStatusChanged());
+        };
+
         _connectionService.ExamEnd += (sender, e) =>
         {
             _logger.LogTrace("考试结束，刷新规则集");
@@ -56,8 +62,20 @@ public class RuleHandlerService
 
     private bool HandleExamPlaying(object? objectSettings)
     {
+        if (!_connectionService.IsConnected)
+        {
+            return false;
+        }
+
         var data = _connectionService.LastEventData;
-        if (data == null || !_connectionService.IsConnected)
+        if (data == null)
+        {
+            return false;
+        }
+
+        // 检查是否有正在进行的考试（放映中或考试已开始未结束）
+        var isExamPlaying = _connectionService.CurrentStatus?.IsPlaying == true;
+        if (!isExamPlaying)
         {
             return false;
         }
