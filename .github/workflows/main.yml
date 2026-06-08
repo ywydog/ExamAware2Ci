@@ -30,4 +30,4 @@ jobs:
         with:
           name: examaware2ci-cipx-artifacts
           path: |
-            D:\a\ExamAware2Ci\ExamAware2Ci\ExamAware2Ci\cipx\ExamAware2Ci.cipx
+            **/cipx/*.cipx
