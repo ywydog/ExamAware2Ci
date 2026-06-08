@@ -259,6 +259,11 @@ public class ExamAwareConnectionService : IDisposable
         }
     }
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private void ProcessMessage(string json)
     {
         try
@@ -270,7 +275,7 @@ public class ExamAwareConnectionService : IDisposable
             switch (type)
             {
                 case "exam-event":
-                    var eventMsg = JsonSerializer.Deserialize<ExamEventMessage>(json);
+                    var eventMsg = JsonSerializer.Deserialize<ExamEventMessage>(json, _jsonOptions);
                     if (eventMsg?.Data == null)
                     {
                         _logger.LogWarning("收到无效的考试事件消息");
@@ -310,7 +315,7 @@ public class ExamAwareConnectionService : IDisposable
                 case "exam-status":
                     if (root.TryGetProperty("data", out var dataElement))
                     {
-                        CurrentStatus = JsonSerializer.Deserialize<ExamStatusData>(dataElement.GetRawText());
+                        CurrentStatus = JsonSerializer.Deserialize<ExamStatusData>(dataElement.GetRawText(), _jsonOptions);
                         _logger.LogDebug("收到考试状态更新: 正在放映={IsPlaying}, 当前考试={Exam}", CurrentStatus?.IsPlaying, CurrentStatus?.CurrentExam?.Name);
                     }
                     break;
