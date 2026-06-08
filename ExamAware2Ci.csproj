@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net8.0-windows</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <LangVersion>12</LangVersion>
+        <LangVersion>latest</LangVersion>
+        <UseWindowsForms>true</UseWindowsForms>
+        <Platforms>x64</Platforms>
         <EnableDynamicLoading>true</EnableDynamicLoading>
     </PropertyGroup>
 
@@ -19,11 +20,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\ExamAware2Ci.Interface\ExamAware2Ci.Interface.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
         <None Update="manifest.yml">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Update="README.md">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
     </ItemGroup>

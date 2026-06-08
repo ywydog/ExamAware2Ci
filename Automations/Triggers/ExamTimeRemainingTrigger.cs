@@ -29,13 +29,13 @@ public class ExamTimeRemainingTrigger(ExamAwareConnectionService connectionServi
         Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 考试时间剩余提醒时");
     }
 
-    private void OnExamTimeRemaining(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamTimeRemaining(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]触发: 考试时间剩余提醒时 - {Name}, 剩余 {Min} 分钟", e.ExamName, e.RemainingMinutes);
         Trigger();
     }
 
-    private void OnExamEnd(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamEnd(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]恢复: 考试已结束（时间剩余提醒恢复） - {Name}", e.ExamName);
         TriggerRevert();

@@ -1,8 +1,0 @@
-id: examaware2ci
-name: ExamAware 联动
-description: ExamAware2 与 ClassIsland 联动插件，提供考试事件自动化触发器
-entranceAssembly: "ExamAware2Ci.dll"
-url: https://github.com/ExamAware/ExamAware2
-apiVersion: 2.0.0.0
-version: 1.0.0.0
-author: ExamAware

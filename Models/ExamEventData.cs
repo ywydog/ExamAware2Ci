@@ -1,4 +1,4 @@
-namespace ExamAware2Ci.Interface.Models;
+namespace ExamAware2Ci.Models;
 
 /// <summary>
 /// 考试事件数据

@@ -1,21 +1,36 @@
 # ExamAware2Ci
 
-ExamAware2 与 ClassIsland 联动插件，提供考试事件自动化触发器，让 ClassIsland 能够实时响应 ExamAware2 的考试状态变化。
+ExamAware2 与 ClassIsland 联动插件，提供考试事件自动化触发器、放映行动和规则集，让 ClassIsland 能够实时响应 ExamAware2 的考试状态变化。
 
 ## 功能
 
-提供 4 个 ClassIsland 自动化触发器：
+### 自动化触发器
 
-| 触发器 | 说明 |
-|--------|------|
-| **进入考试放映时** | 当 ExamAware2 打开播放器窗口开始放映考试信息时触发 |
-| **考试开始时** | 当考试正式开始时触发 |
-| **考试时间剩余提醒时** | 当考试剩余时间到达提醒时间时触发 |
-| **考试结束时** | 当考试结束时触发 |
+| 触发器 | 说明 | 恢复条件 |
+|--------|------|----------|
+| **进入考试放映时** | 当 ExamAware2 打开播放器窗口开始放映考试信息时触发 | 放映停止时恢复 |
+| **考试开始时** | 当考试正式开始时触发 | 考试结束时恢复 |
+| **考试时间剩余提醒时** | 当考试剩余时间到达提醒时间时触发 | 考试结束时恢复 |
+| **考试结束时** | 当考试结束时触发 | 无恢复（终态） |
+
+### 自动化行动
+
+| 行动 | 说明 |
+|------|------|
+| **放映考试信息** | 通过 IPC 控制 ExamAware2 放映考试信息，支持 URL 链接或本地文件路径 |
+
+### 规则集
+
+| 规则 | 说明 |
+|------|------|
+| **正在考试时** | 当考试正在进行时满足条件，支持按考试名称筛选 |
 
 ## 通信方式
 
-ExamAware2Ci 通过 WebSocket 连接 ExamAware2 的 HTTP API 服务（默认 `ws://127.0.0.1:31234/api/v1/ws`），订阅考试事件频道，实时接收考试状态变化。
+ExamAware2Ci 使用双通道与 ExamAware2 通信：
+
+- **WebSocket**（`ws://127.0.0.1:31234/api/v1/ws`）：订阅考试事件，实时接收考试状态变化
+- **IPC**（Named Pipe / Unix Socket）：发送控制命令（放映、停止等）
 
 ### WebSocket 消息协议
 
@@ -41,18 +56,22 @@ ExamAware2Ci 通过 WebSocket 连接 ExamAware2 的 HTTP API 服务（默认 `ws
 }
 ```
 
-### HTTP API 端点
+### IPC 协议
 
-| 端点 | 说明 |
+通过 Named Pipe（Windows: `\\.\pipe\ExamAware2.examaware2`）或 Unix Socket（Linux: `/tmp/ExamAware2.examaware2.sock`）发送 JSON 命令：
+
+| 命令 | 说明 |
 |------|------|
-| `GET /api/v1/exam/status` | 获取当前考试完整状态 |
-| `GET /api/v1/exam/current` | 获取当前进行中的考试 |
-| `GET /api/v1/exam/list` | 获取考试列表 |
+| `ping` | 检测 IPC 连接 |
+| `play-from-url` | 通过 URL 放映考试信息 |
+| `play-from-file` | 通过本地文件放映考试信息 |
+| `stop` | 停止放映 |
+| `status` | 获取当前状态 |
 
 ## 前置要求
 
 - [ClassIsland](https://github.com/ClassIsland/ClassIsland) >= 2.0
-- [ExamAware2](https://github.com/ExamAware/ExamAware2) 运行中并开启了 HTTP API 服务
+- [ExamAware2](https://github.com/ExamAware/ExamAware2) 运行中并开启了 HTTP API 服务和外部 IPC
 
 ## 安装
 
@@ -64,11 +83,11 @@ ExamAware2Ci 通过 WebSocket 连接 ExamAware2 的 HTTP API 服务（默认 `ws
 
 ## 使用
 
-1. 确保 ExamAware2 已启动并开启了 HTTP API
+1. 确保 ExamAware2 已启动并开启了 HTTP API 和外部 IPC
 2. 启动 ClassIsland，插件将自动连接 ExamAware2
 3. 在 ClassIsland 的 **自动化** 设置中添加规则
-4. 选择 ExamAware2Ci 提供的触发器
-5. 配置对应的动作（如显示通知、播放提示音等）
+4. 选择 ExamAware2Ci 提供的触发器、行动或规则集
+5. 配置对应的动作
 
 ### 示例：考试开始时显示通知
 
@@ -77,36 +96,54 @@ ExamAware2Ci 通过 WebSocket 连接 ExamAware2 的 HTTP API 服务（默认 `ws
 3. 动作选择 **"显示通知"**
 4. 通知内容填写：`{examName} 考试已开始`
 
+### 示例：自动放映考试信息
+
+1. 新建自动化规则
+2. 触发器选择 **"考试开始时"**
+3. 动作选择 **"放映考试信息"**
+4. 配置来源类型为 URL，填入考试信息链接
+
 ## 项目结构
 
 ```
 ExamAware2Ci/
 ├── ExamAware2Ci.sln
-├── ExamAware2Ci/
-│   ├── ExamAware2Ci.csproj
-│   ├── Plugin.cs                          # 插件入口
-│   ├── manifest.yml                       # 插件清单
-│   ├── Services/
-│   │   └── ExamAwareConnectionService.cs  # WebSocket 连接服务
-│   ├── Models/
-│   │   ├── ExamEventMessage.cs            # 事件消息模型
-│   │   ├── ExamStatusData.cs             # 考试状态模型
-│   │   └── Automation/
-│   │       └── ExamTimeRemainingTriggerSettings.cs
-│   ├── Automations/
-│   │   └── Triggers/
-│   │       ├── ExamPresentationStartTrigger.cs
-│   │       ├── ExamStartTrigger.cs
-│   │       ├── ExamTimeRemainingTrigger.cs
-│   │       └── ExamEndTrigger.cs
-│   └── Controls/
-│       └── Automations/
-│           └── TriggerSettingsControls/
-│               └── ExamTimeRemainingTriggerSettingsControl.axaml
-└── ExamAware2Ci.Interface/
-    ├── ExamAware2Ci.Interface.csproj
-    └── Models/
-        └── ExamEventData.cs               # 共享事件数据模型
+├── ExamAware2Ci.csproj
+├── Plugin.cs                               # 插件入口
+├── manifest.yml                            # 插件清单
+├── Automations/
+│   ├── Actions/
+│   │   └── PlayExamAction.cs               # 放映考试信息行动
+│   └── Triggers/
+│       ├── ExamPresentationStartTrigger.cs  # 进入考试放映触发器
+│       ├── ExamStartTrigger.cs             # 考试开始触发器
+│       ├── ExamTimeRemainingTrigger.cs     # 考试时间剩余触发器
+│       └── ExamEndTrigger.cs              # 考试结束触发器
+├── Controls/
+│   └── Automations/
+│       ├── ActionSettingsControls/
+│       │   └── PlayExamActionSettingsControl.axaml
+│       ├── RuleSettingsControls/
+│       │   └── ExamPlayingRuleSettingsControl.axaml
+│       └── TriggerSettingsControls/
+│           └── ExamTimeRemainingTriggerSettingsControl.axaml
+├── Models/
+│   ├── ExamEventData.cs                    # 考试事件数据模型
+│   ├── ExamEventMessage.cs                 # WebSocket 事件消息模型
+│   ├── ExamStatusData.cs                   # 考试状态模型
+│   ├── Automation/
+│   │   └── ExamTimeRemainingTriggerSettings.cs
+│   └── Automations/
+│       ├── Actions/
+│       │   └── PlayExamActionSettings.cs
+│       └── Rules/
+│           └── ExamPlayingRuleSettings.cs
+├── Services/
+│   ├── ExamAwareConnectionService.cs       # WebSocket 连接服务
+│   └── Automations/
+│       └── RuleHandlerService.cs           # 规则处理服务
+└── Shared/
+    └── ExamAwareIpcClient.cs              # IPC 客户端
 ```
 
 ## 开发

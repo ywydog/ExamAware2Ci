@@ -1,7 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using ExamAware2Ci.Interface.Models;
 using ExamAware2Ci.Models;
 using Microsoft.Extensions.Logging;
 

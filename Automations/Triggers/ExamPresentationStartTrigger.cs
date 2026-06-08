@@ -28,13 +28,13 @@ public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionS
         Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 进入考试放映时");
     }
 
-    private void OnExamPresentationStart(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamPresentationStart(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]触发: 进入考试放映时 - {Name}", e.ExamName);
         Trigger();
     }
 
-    private void OnExamPresentationStop(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamPresentationStop(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]恢复: 考试放映已停止 - {Name}", e.ExamName);
         TriggerRevert();

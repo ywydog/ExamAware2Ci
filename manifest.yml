@@ -1,0 +1,12 @@
+id: examaware2ci
+name: ExamAware 联动
+description: ExamAware2 与 ClassIsland 联动插件，提供考试事件自动化触发器、放映行动和规则集
+entranceAssembly: "ExamAware2Ci.dll"
+url: https://github.com/ywydog/ExamAware2Ci
+apiVersion: 2.0.0.0
+version: 1.0.0.0
+author: ExamAware
+readme: README.md
+repoOwner: ywydog
+repoName: ExamAware2Ci
+assetsRoot: main

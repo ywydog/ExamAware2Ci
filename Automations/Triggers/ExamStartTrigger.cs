@@ -28,13 +28,13 @@ public class ExamStartTrigger(ExamAwareConnectionService connectionService, ILog
         Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 考试开始时");
     }
 
-    private void OnExamStart(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamStart(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]触发: 考试开始时 - {Name}", e.ExamName);
         Trigger();
     }
 
-    private void OnExamEnd(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamEnd(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]恢复: 考试已结束 - {Name}", e.ExamName);
         TriggerRevert();

@@ -26,7 +26,7 @@ public class ExamEndTrigger(ExamAwareConnectionService connectionService, ILogge
         Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 考试结束时");
     }
 
-    private void OnExamEnd(object? sender, Interface.Models.ExamEventData e)
+    private void OnExamEnd(object? sender, Models.ExamEventData e)
     {
         Logger.LogInformation("[ExamAware2Ci]触发: 考试结束时 - {Name}", e.ExamName);
         Trigger();

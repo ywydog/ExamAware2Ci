@@ -1,5 +1,3 @@
-using ExamAware2Ci.Interface.Models;
-
 namespace ExamAware2Ci.Models;
 
 /// <summary>
