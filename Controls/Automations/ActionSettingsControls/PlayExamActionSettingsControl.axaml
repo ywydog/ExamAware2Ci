@@ -19,8 +19,13 @@
             </ComboBoxItem>
         </ComboBox>
         <TextBox VerticalAlignment="Center"
-                 Width="300"
+                 Width="280"
                  Watermark="输入 URL 或本地文件路径"
                  Text="{Binding Settings.Source}" />
+        <Button VerticalAlignment="Center"
+                Name="BtnBrowse"
+                Click="BtnBrowse_Click">
+            <ci:IconText Glyph="&#xE8E5;" Text="浏览"/>
+        </Button>
     </StackPanel>
 </UserControl>
