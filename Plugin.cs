@@ -49,7 +49,7 @@ public class Plugin : PluginBase
         AppBase.Current.AppStarted += (sender, args) =>
         {
             _logger = IAppHost.GetService<ILogger<Plugin>>();
-            _logger?.LogInformation("[ExamAware2Ci]插件正在启动...");
+            _logger?.LogInformation("插件正在启动...");
 
             var connectionService = IAppHost.GetService<ExamAwareConnectionService>();
 
@@ -58,11 +58,11 @@ public class Plugin : PluginBase
             {
                 if (connected)
                 {
-                    _logger?.LogInformation("[ExamAware2Ci]已连接 ExamAware2");
+                    _logger?.LogInformation("已连接 ExamAware2");
                 }
                 else
                 {
-                    _logger?.LogWarning("[ExamAware2Ci]与 ExamAware2 的连接已断开");
+                    _logger?.LogWarning("与 ExamAware2 的连接已断开");
                 }
             };
 
@@ -72,16 +72,16 @@ public class Plugin : PluginBase
             var ruleHandlerService = IAppHost.GetService<RuleHandlerService>();
             ruleHandlerService.Register();
 
-            _logger?.LogInformation("[ExamAware2Ci]插件启动完成");
+            _logger?.LogInformation("插件启动完成");
         };
 
         // 应用停止时断开连接
         AppBase.Current.AppStopping += (sender, args) =>
         {
-            _logger?.LogInformation("[ExamAware2Ci]插件正在关闭，断开 ExamAware2 连接...");
+            _logger?.LogInformation("插件正在关闭，断开 ExamAware2 连接...");
             var connectionService = IAppHost.GetService<ExamAwareConnectionService>();
             connectionService.Dispose();
-            _logger?.LogInformation("[ExamAware2Ci]插件已关闭");
+            _logger?.LogInformation("插件已关闭");
         };
     }
 }

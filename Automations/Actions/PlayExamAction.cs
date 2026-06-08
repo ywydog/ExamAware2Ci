@@ -15,7 +15,7 @@ public class PlayExamAction(ILogger<PlayExamAction> logger) : ActionBase<PlayExa
     {
         if (string.IsNullOrWhiteSpace(Settings.Source))
         {
-            Logger.LogWarning("[ExamAware2Ci]放映考试信息：来源为空，跳过执行");
+            Logger.LogWarning("放映考试信息：来源为空，跳过执行");
             return;
         }
 
@@ -25,30 +25,30 @@ public class PlayExamAction(ILogger<PlayExamAction> logger) : ActionBase<PlayExa
             ? (object)new { url = Settings.Source }
             : new { path = Settings.Source };
 
-        Logger.LogInformation("[ExamAware2Ci]放映考试信息：类型={Type}, 来源={Source}", type, Settings.Source);
+        Logger.LogInformation("放映考试信息：类型={Type}, 来源={Source}", type, Settings.Source);
 
         var result = await ExamAwareIpcClient.SendCommandAsync(type, payload);
 
         if (result["success"]?.GetValue<bool>() == true)
         {
-            Logger.LogInformation("[ExamAware2Ci]放映考试信息：执行成功");
+            Logger.LogInformation("放映考试信息：执行成功");
         }
         else
         {
             var error = result["error"]?.GetValue<string>() ?? "未知错误";
-            Logger.LogWarning("[ExamAware2Ci]放映考试信息：执行失败 - {Error}", error);
+            Logger.LogWarning("放映考试信息：执行失败 - {Error}", error);
         }
     }
 
     protected override async Task OnRevert()
     {
-        Logger.LogInformation("[ExamAware2Ci]放映考试信息：停止放映");
+        Logger.LogInformation("放映考试信息：停止放映");
         var result = await ExamAwareIpcClient.SendCommandAsync("stop");
 
         if (result["success"]?.GetValue<bool>() != true)
         {
             var error = result["error"]?.GetValue<string>() ?? "未知错误";
-            Logger.LogWarning("[ExamAware2Ci]放映考试信息：停止失败 - {Error}", error);
+            Logger.LogWarning("放映考试信息：停止失败 - {Error}", error);
         }
     }
 }

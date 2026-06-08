@@ -19,25 +19,25 @@ public class ExamTimeRemainingTrigger(ExamAwareConnectionService connectionServi
     {
         ConnectionService.ExamTimeRemaining += OnExamTimeRemaining;
         ConnectionService.ExamEnd += OnExamEnd;
-        Logger.LogDebug("[ExamAware2Ci]触发器已加载: 考试时间剩余提醒时");
+        Logger.LogDebug("触发器已加载: 考试时间剩余提醒时");
     }
 
     public override void UnLoaded()
     {
         ConnectionService.ExamTimeRemaining -= OnExamTimeRemaining;
         ConnectionService.ExamEnd -= OnExamEnd;
-        Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 考试时间剩余提醒时");
+        Logger.LogDebug("触发器已卸载: 考试时间剩余提醒时");
     }
 
     private void OnExamTimeRemaining(object? sender, Models.ExamEventData e)
     {
-        Logger.LogInformation("[ExamAware2Ci]触发: 考试时间剩余提醒时 - {Name}, 剩余 {Min} 分钟", e.ExamName, e.RemainingMinutes);
+        Logger.LogInformation("触发: 考试时间剩余提醒时 - {Name}, 剩余 {Min} 分钟", e.ExamName, e.RemainingMinutes);
         Trigger();
     }
 
     private void OnExamEnd(object? sender, Models.ExamEventData e)
     {
-        Logger.LogInformation("[ExamAware2Ci]恢复: 考试已结束（时间剩余提醒恢复） - {Name}", e.ExamName);
+        Logger.LogInformation("恢复: 考试已结束（时间剩余提醒恢复） - {Name}", e.ExamName);
         TriggerRevert();
     }
 }

@@ -17,18 +17,18 @@ public class ExamEndTrigger(ExamAwareConnectionService connectionService, ILogge
     public override void Loaded()
     {
         ConnectionService.ExamEnd += OnExamEnd;
-        Logger.LogDebug("[ExamAware2Ci]触发器已加载: 考试结束时");
+        Logger.LogDebug("触发器已加载: 考试结束时");
     }
 
     public override void UnLoaded()
     {
         ConnectionService.ExamEnd -= OnExamEnd;
-        Logger.LogDebug("[ExamAware2Ci]触发器已卸载: 考试结束时");
+        Logger.LogDebug("触发器已卸载: 考试结束时");
     }
 
     private void OnExamEnd(object? sender, Models.ExamEventData e)
     {
-        Logger.LogInformation("[ExamAware2Ci]触发: 考试结束时 - {Name}", e.ExamName);
+        Logger.LogInformation("触发: 考试结束时 - {Name}", e.ExamName);
         Trigger();
     }
 }
