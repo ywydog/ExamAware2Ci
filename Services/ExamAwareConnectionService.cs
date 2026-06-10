@@ -1,20 +1,22 @@
-using System.Net.WebSockets;
+using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using ExamAware2Ci.Models;
+using ExamAware2Ci.Shared;
 using Microsoft.Extensions.Logging;
 
 namespace ExamAware2Ci.Services;
 
 /// <summary>
-/// ExamAware2 WebSocket 连接服务
+/// ExamAware2 IPC 连接服务 - 通过外部 IPC 长连接接收考试事件
+/// ExamAware2 在关键事件发生时主动推送事件给已订阅的 IPC 客户端
 /// </summary>
 public class ExamAwareConnectionService : IDisposable
 {
     private readonly ILogger<ExamAwareConnectionService> _logger;
-    private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _cts;
-    private readonly string _serverUrl;
+    private Stream? _currentStream;
     private bool _isConnected;
     private bool _isSubscribed;
     private int _reconnectAttempt;
@@ -78,7 +80,6 @@ public class ExamAwareConnectionService : IDisposable
     public ExamAwareConnectionService(ILogger<ExamAwareConnectionService> logger)
     {
         _logger = logger;
-        _serverUrl = "ws://127.0.0.1:31234/api/v1/ws";
     }
 
     /// <summary>
@@ -92,7 +93,7 @@ public class ExamAwareConnectionService : IDisposable
             return;
         }
 
-        _logger.LogInformation("正在启动 WebSocket 连接服务，目标: {Url}", _serverUrl);
+        _logger.LogInformation("正在启动 IPC 连接服务");
         _cts = new CancellationTokenSource();
         _ = RunConnectionLoop(_cts.Token);
     }
@@ -102,40 +103,27 @@ public class ExamAwareConnectionService : IDisposable
     /// </summary>
     public async Task StopAsync()
     {
-        _logger.LogInformation("正在停止 WebSocket 连接服务...");
+        _logger.LogInformation("正在停止 IPC 连接服务...");
 
         _cts?.Cancel();
-
-        if (_webSocket?.State == WebSocketState.Open)
-        {
-            try
-            {
-                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Stopping", CancellationToken.None);
-                _logger.LogInformation("WebSocket 连接已正常关闭");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug("关闭 WebSocket 连接时出错: {Error}", ex.Message);
-            }
-        }
-
-        CleanupWebSocket();
+        CleanupStream();
         _cts?.Dispose();
         _cts = null;
         SetConnected(false);
         _isSubscribed = false;
     }
 
-    private void CleanupWebSocket()
+    private void CleanupStream()
     {
-        if (_webSocket != null)
+        if (_currentStream != null)
         {
             try
             {
-                _webSocket.Dispose();
+                _currentStream.Close();
+                _currentStream.Dispose();
             }
             catch { /* ignore */ }
-            _webSocket = null;
+            _currentStream = null;
         }
     }
 
@@ -143,47 +131,69 @@ public class ExamAwareConnectionService : IDisposable
     {
         while (!ct.IsCancellationRequested)
         {
+            Stream? stream = null;
             try
             {
-                // 清理旧的 WebSocket 实例
-                CleanupWebSocket();
-                _isSubscribed = false;
-
                 _reconnectAttempt++;
-                _webSocket = new ClientWebSocket();
-                _logger.LogInformation("正在连接 ExamAware2 (第 {Attempt} 次): {Url}", _reconnectAttempt, _serverUrl);
+                _isSubscribed = false;
+                var ipcAddress = ExamAwareIpcClient.GetIpcAddress(ExamAwareIpcClient.DefaultIpcName);
 
-                await _webSocket.ConnectAsync(new Uri(_serverUrl), ct);
+                _logger.LogInformation("正在连接 ExamAware2 IPC (第 {Attempt} 次): {Address}", _reconnectAttempt, ipcAddress);
+
+                if (OperatingSystem.IsWindows())
+                {
+                    var pipeName = ExamAwareIpcClient.NormalizeIpcName(ExamAwareIpcClient.DefaultIpcName);
+                    var pipe = new NamedPipeClientStream(
+                        serverName: ".",
+                        pipeName: pipeName,
+                        direction: PipeDirection.InOut,
+                        options: PipeOptions.Asynchronous
+                    );
+                    await pipe.ConnectAsync(5000, ct);
+                    stream = pipe;
+                }
+                else
+                {
+                    var address = ExamAwareIpcClient.GetIpcAddress(ExamAwareIpcClient.DefaultIpcName);
+                    var endPoint = new UnixDomainSocketEndPoint(address);
+                    var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                    await socket.ConnectAsync(endPoint, ct);
+                    stream = new NetworkStream(socket, ownsSocket: true);
+                }
+
+                _currentStream = stream;
                 _lastConnectedAt = DateTime.Now;
                 _reconnectAttempt = 0;
                 SetConnected(true);
-                _logger.LogInformation("已成功连接 ExamAware2，WebSocket 状态: {State}", _webSocket.State);
+                _logger.LogInformation("已成功连接 ExamAware2 IPC");
 
-                // 订阅考试事件
-                await SubscribeAsync(ct);
+                // 发送订阅考试事件命令
+                await SubscribeAsync(stream, ct);
 
-                // 接收消息循环
-                await ReceiveMessagesAsync(ct);
+                // 接收消息循环（同时处理服务端推送的事件和命令响应）
+                await ReceiveMessagesAsync(stream, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 _logger.LogInformation("连接循环已取消");
                 break;
             }
-            catch (WebSocketException ex)
+            catch (Exception ex) when (ex is TimeoutException or SocketException or IOException or FileNotFoundException)
             {
-                _logger.LogWarning("WebSocket 连接异常 (第 {Attempt} 次重连): {Error}", _reconnectAttempt + 1, ex.Message);
-                SetConnected(false);
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogWarning("无法连接 ExamAware2 (服务可能未启动): {Error}", ex.Message);
+                _logger.LogWarning("无法连接 ExamAware2 IPC (服务可能未启动或未启用外部 IPC): {Error}", ex.Message);
                 SetConnected(false);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "ExamAware2 连接断开，5秒后重连 (第 {Attempt} 次)", _reconnectAttempt + 1);
+                _logger.LogWarning(ex, "ExamAware2 IPC 连接断开，5秒后重连 (第 {Attempt} 次)", _reconnectAttempt + 1);
                 SetConnected(false);
+            }
+            finally
+            {
+                if (stream != null && stream != _currentStream)
+                {
+                    try { stream.Close(); stream.Dispose(); } catch { /* ignore */ }
+                }
             }
 
             if (!ct.IsCancellationRequested)
@@ -203,59 +213,46 @@ public class ExamAwareConnectionService : IDisposable
         _logger.LogInformation("连接循环已退出");
     }
 
-    private async Task SubscribeAsync(CancellationToken ct)
+    private async Task SubscribeAsync(Stream stream, CancellationToken ct)
     {
-        if (_webSocket?.State != WebSocketState.Open)
-        {
-            _logger.LogWarning("无法订阅考试事件：WebSocket 未连接");
-            return;
-        }
-
         var subscribeMsg = JsonSerializer.Serialize(new
         {
-            type = "subscribe",
-            channel = "exam-events"
+            type = "subscribe-events",
+            payload = new { }
         });
-        var bytes = Encoding.UTF8.GetBytes(subscribeMsg);
-        await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct);
+        var bytes = Encoding.UTF8.GetBytes(subscribeMsg + "\n");
+        await stream.WriteAsync(bytes, ct);
+        await stream.FlushAsync(ct);
         _logger.LogInformation("已发送考试事件订阅请求");
     }
 
-    private async Task ReceiveMessagesAsync(CancellationToken ct)
+    private async Task ReceiveMessagesAsync(Stream stream, CancellationToken ct)
     {
-        var buffer = new byte[8192];
-        var messageBuilder = new StringBuilder();
-
-        while (_webSocket?.State == WebSocketState.Open && !ct.IsCancellationRequested)
+        while (!ct.IsCancellationRequested)
         {
-            WebSocketReceiveResult result;
-            messageBuilder.Clear();
-
-            do
+            try
             {
-                result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
-
-                if (result.MessageType == WebSocketMessageType.Close)
+                var lineBytes = await ExamAwareIpcClient.ReadLineAsync(stream, maxBytes: 1024 * 1024, ct);
+                if (lineBytes == null || lineBytes.Length == 0)
                 {
-                    _logger.LogInformation("ExamAware2 服务端关闭了连接 (关闭码: {CloseCode})", result.CloseStatus);
+                    _logger.LogWarning("IPC 连接已关闭（收到空数据）");
                     return;
                 }
 
-                var chunk = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                messageBuilder.Append(chunk);
-            }
-            while (!result.EndOfMessage);
+                var json = Encoding.UTF8.GetString(lineBytes).Trim();
+                if (string.IsNullOrEmpty(json)) continue;
 
-            if (result.MessageType == WebSocketMessageType.Text)
-            {
-                var json = messageBuilder.ToString();
                 ProcessMessage(json);
             }
-        }
-
-        if (_webSocket?.State != WebSocketState.Open)
-        {
-            _logger.LogWarning("WebSocket 连接已断开，状态: {State}", _webSocket?.State);
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "IPC 接收消息异常，连接可能已断开");
+                return;
+            }
         }
     }
 
@@ -270,71 +267,76 @@ public class ExamAwareConnectionService : IDisposable
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            var type = root.GetProperty("type").GetString();
 
+            // 判断消息类型：exam-event（服务端推送）还是命令响应
+            var hasType = root.TryGetProperty("type", out var typeElement);
+            if (!hasType) return;
+
+            var type = typeElement.GetString();
+
+            // 服务端推送的考试事件
+            if (type == "exam-event")
+            {
+                var eventMsg = JsonSerializer.Deserialize<ExamEventMessage>(json, _jsonOptions);
+                if (eventMsg?.Data == null)
+                {
+                    _logger.LogWarning("收到无效的考试事件消息");
+                    return;
+                }
+
+                LastEventData = eventMsg.Data;
+
+                switch (eventMsg.Event)
+                {
+                    case "exam-presentation-start":
+                        _logger.LogInformation("考试放映开始: {Name} (配置: {Config})", eventMsg.Data.ExamName, eventMsg.Data.ExamConfigName);
+                        ExamPresentationStart?.Invoke(this, eventMsg.Data);
+                        break;
+                    case "exam-presentation-stop":
+                        _logger.LogInformation("考试放映停止: {Name}", eventMsg.Data.ExamName);
+                        ExamPresentationStop?.Invoke(this, eventMsg.Data);
+                        break;
+                    case "exam-start":
+                        _logger.LogInformation("考试开始: {Name} (开始: {Start}, 结束: {End})", eventMsg.Data.ExamName, eventMsg.Data.StartTime, eventMsg.Data.EndTime);
+                        ExamStart?.Invoke(this, eventMsg.Data);
+                        break;
+                    case "exam-time-remaining":
+                        _logger.LogInformation("考试时间剩余: {Name}, 剩余 {Min} 分钟 (提醒时间: {Alert} 分钟)", eventMsg.Data.ExamName, eventMsg.Data.RemainingMinutes, eventMsg.Data.AlertTime);
+                        ExamTimeRemaining?.Invoke(this, eventMsg.Data);
+                        break;
+                    case "exam-end":
+                        _logger.LogInformation("考试结束: {Name}", eventMsg.Data.ExamName);
+                        ExamEnd?.Invoke(this, eventMsg.Data);
+                        break;
+                    default:
+                        _logger.LogDebug("收到未知考试事件: {Event}", eventMsg.Event);
+                        break;
+                }
+                return;
+            }
+
+            // 命令响应
             switch (type)
             {
-                case "exam-event":
-                    var eventMsg = JsonSerializer.Deserialize<ExamEventMessage>(json, _jsonOptions);
-                    if (eventMsg?.Data == null)
-                    {
-                        _logger.LogWarning("收到无效的考试事件消息");
-                        return;
-                    }
-
-                    LastEventData = eventMsg.Data;
-
-                    switch (eventMsg.Event)
-                    {
-                        case "exam-presentation-start":
-                            _logger.LogInformation("考试放映开始: {Name} (配置: {Config})", eventMsg.Data.ExamName, eventMsg.Data.ExamConfigName);
-                            ExamPresentationStart?.Invoke(this, eventMsg.Data);
-                            break;
-                        case "exam-presentation-stop":
-                            _logger.LogInformation("考试放映停止: {Name}", eventMsg.Data.ExamName);
-                            ExamPresentationStop?.Invoke(this, eventMsg.Data);
-                            break;
-                        case "exam-start":
-                            _logger.LogInformation("考试开始: {Name} (开始: {Start}, 结束: {End})", eventMsg.Data.ExamName, eventMsg.Data.StartTime, eventMsg.Data.EndTime);
-                            ExamStart?.Invoke(this, eventMsg.Data);
-                            break;
-                        case "exam-time-remaining":
-                            _logger.LogInformation("考试时间剩余: {Name}, 剩余 {Min} 分钟 (提醒时间: {Alert} 分钟)", eventMsg.Data.ExamName, eventMsg.Data.RemainingMinutes, eventMsg.Data.AlertTime);
-                            ExamTimeRemaining?.Invoke(this, eventMsg.Data);
-                            break;
-                        case "exam-end":
-                            _logger.LogInformation("考试结束: {Name}", eventMsg.Data.ExamName);
-                            ExamEnd?.Invoke(this, eventMsg.Data);
-                            break;
-                        default:
-                            _logger.LogDebug("收到未知考试事件: {Event}", eventMsg.Event);
-                            break;
-                    }
-                    break;
-
-                case "exam-status":
-                    if (root.TryGetProperty("data", out var dataElement))
-                    {
-                        CurrentStatus = JsonSerializer.Deserialize<ExamStatusData>(dataElement.GetRawText(), _jsonOptions);
-                        _logger.LogDebug("收到考试状态更新: 正在放映={IsPlaying}, 当前考试={Exam}", CurrentStatus?.IsPlaying, CurrentStatus?.CurrentExam?.Name);
-                    }
-                    break;
-
-                case "subscribed":
+                case "subscribe-events":
                     _isSubscribed = true;
-                    _logger.LogInformation("已成功订阅考试事件频道");
+                    _logger.LogInformation("已成功订阅考试事件");
                     break;
 
-                case "welcome":
-                    _logger.LogInformation("收到 ExamAware2 欢迎消息");
+                case "ping":
+                    _logger.LogTrace("收到 ping 响应");
                     break;
 
-                case "pong":
-                    _logger.LogTrace("收到心跳响应");
+                case "status":
+                    if (root.TryGetProperty("result", out var resultElement))
+                    {
+                        CurrentStatus = JsonSerializer.Deserialize<ExamStatusData>(resultElement.GetRawText(), _jsonOptions);
+                        _logger.LogDebug("收到考试状态: 正在放映={IsPlaying}", CurrentStatus?.IsPlaying);
+                    }
                     break;
 
                 default:
-                    _logger.LogDebug("收到未知消息类型: {Type}", type);
+                    _logger.LogDebug("收到 IPC 响应: {Type}", type);
                     break;
             }
         }

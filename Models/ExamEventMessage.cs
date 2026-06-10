@@ -1,7 +1,7 @@
 namespace ExamAware2Ci.Models;
 
 /// <summary>
-/// ExamAware2 WebSocket 考试事件消息
+/// ExamAware2 IPC 考试事件消息
 /// </summary>
 public class ExamEventMessage
 {
