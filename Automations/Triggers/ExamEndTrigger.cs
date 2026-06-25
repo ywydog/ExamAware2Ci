@@ -8,7 +8,7 @@ namespace ExamAware2Ci.Automations.Triggers;
 /// <summary>
 /// 当考试结束时触发
 /// </summary>
-[TriggerInfo("examaware2ci.triggers.examEnd", "考试结束时", "\uE894")]
+[TriggerInfo(Plugin.ExamAware2CiIds.ExamEndTrigger, "考试结束时", "\uE894")]
 public class ExamEndTrigger(ExamAwareConnectionService connectionService, ILogger<ExamEndTrigger> logger) : TriggerBase
 {
     private ExamAwareConnectionService ConnectionService { get; } = connectionService;

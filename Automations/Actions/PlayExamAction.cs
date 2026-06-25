@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ExamAware2Ci.Automations.Actions;
 
-[ActionInfo("examaware2ci.actions.playExam", "放映考试信息", "\uE7B8")]
+[ActionInfo(Plugin.ExamAware2CiIds.PlayExamAction, "放映考试信息", "\uE7B8")]
 public class PlayExamAction(ILogger<PlayExamAction> logger) : ActionBase<PlayExamActionSettings>
 {
     private ILogger<PlayExamAction> Logger { get; } = logger;

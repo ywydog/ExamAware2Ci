@@ -8,7 +8,7 @@ namespace ExamAware2Ci.Automations.Triggers;
 /// <summary>
 /// 当考试开始时触发，考试结束时恢复
 /// </summary>
-[TriggerInfo("examaware2ci.triggers.examStart", "考试开始时", "\uE8DE")]
+[TriggerInfo(Plugin.ExamAware2CiIds.ExamStartTrigger, "考试开始时", "\uE8DE")]
 public class ExamStartTrigger(ExamAwareConnectionService connectionService, ILogger<ExamStartTrigger> logger) : TriggerBase
 {
     private ExamAwareConnectionService ConnectionService { get; } = connectionService;

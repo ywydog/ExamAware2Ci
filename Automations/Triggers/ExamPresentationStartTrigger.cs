@@ -8,7 +8,7 @@ namespace ExamAware2Ci.Automations.Triggers;
 /// <summary>
 /// 当进入考试放映时触发，放映停止时恢复
 /// </summary>
-[TriggerInfo("examaware2ci.triggers.examPresentationStart", "进入考试放映时", "\uE7B8")]
+[TriggerInfo(Plugin.ExamAware2CiIds.ExamPresentationStartTrigger, "进入考试放映时", "\uE7B8")]
 public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionService, ILogger<ExamPresentationStartTrigger> logger) : TriggerBase
 {
     private ExamAwareConnectionService ConnectionService { get; } = connectionService;

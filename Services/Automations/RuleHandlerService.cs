@@ -56,7 +56,7 @@ public class RuleHandlerService
         };
 
         // 注册规则处理器
-        _rulesetService.RegisterRuleHandler("examaware2ci.rules.examPlaying", HandleExamPlaying);
+        _rulesetService.RegisterRuleHandler(Plugin.ExamAware2CiIds.ExamPlayingRule, HandleExamPlaying);
         _logger.LogInformation("规则处理器已注册");
     }
 
