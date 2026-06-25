@@ -74,7 +74,7 @@ public class RuleHandlerService
         }
 
         // 检查是否有正在进行的考试（放映中或考试已开始未结束）
-        var isExamPlaying = _connectionService.CurrentStatus?.IsPlaying == true;
+        var isExamPlaying = _connectionService.IsPresentationActive || _connectionService.IsExamActive;
         if (!isExamPlaying)
         {
             return false;

@@ -18,7 +18,14 @@ public class ExamStartTrigger(ExamAwareConnectionService connectionService, ILog
     {
         ConnectionService.ExamStart += OnExamStart;
         ConnectionService.ExamEnd += OnExamEnd;
-        Logger.LogDebug("触发器已加载: 考试开始时");
+        Logger.LogInformation("触发器已加载: 考试开始时");
+
+        // 如果加载时已经在考试中，立即触发，避免错过连接前已发生的事件
+        if (ConnectionService.IsConnected && ConnectionService.IsExamActive)
+        {
+            Logger.LogInformation("加载时发现正在考试，立即触发");
+            OnExamStart(this, ConnectionService.LastEventData ?? new Models.ExamEventData());
+        }
     }
 
     public override void UnLoaded()

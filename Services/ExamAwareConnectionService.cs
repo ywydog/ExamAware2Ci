@@ -17,10 +17,10 @@ public class ExamAwareConnectionService : IDisposable
     private readonly ILogger<ExamAwareConnectionService> _logger;
     private CancellationTokenSource? _cts;
     private Stream? _currentStream;
+    private readonly object _streamLock = new();
     private bool _isConnected;
     private bool _isSubscribed;
     private int _reconnectAttempt;
-    private DateTime _lastConnectedAt;
 
     /// <summary>
     /// 连接状态变化事件
@@ -61,6 +61,16 @@ public class ExamAwareConnectionService : IDisposable
     /// 当前考试状态
     /// </summary>
     public ExamStatusData? CurrentStatus { get; private set; }
+
+    /// <summary>
+    /// 是否正在放映考试信息
+    /// </summary>
+    public bool IsPresentationActive { get; private set; }
+
+    /// <summary>
+    /// 是否正在考试进行中
+    /// </summary>
+    public bool IsExamActive { get; private set; }
 
     /// <summary>
     /// 是否已连接
@@ -111,19 +121,23 @@ public class ExamAwareConnectionService : IDisposable
         _cts = null;
         SetConnected(false);
         _isSubscribed = false;
+        await Task.CompletedTask;
     }
 
     private void CleanupStream()
     {
-        if (_currentStream != null)
+        lock (_streamLock)
         {
-            try
+            if (_currentStream != null)
             {
-                _currentStream.Close();
-                _currentStream.Dispose();
+                try
+                {
+                    _currentStream.Close();
+                    _currentStream.Dispose();
+                }
+                catch { /* ignore */ }
+                _currentStream = null;
             }
-            catch { /* ignore */ }
-            _currentStream = null;
         }
     }
 
@@ -131,7 +145,6 @@ public class ExamAwareConnectionService : IDisposable
     {
         while (!ct.IsCancellationRequested)
         {
-            Stream? stream = null;
             try
             {
                 _reconnectAttempt++;
@@ -140,6 +153,7 @@ public class ExamAwareConnectionService : IDisposable
 
                 _logger.LogInformation("正在连接 ExamAware2 IPC (第 {Attempt} 次): {Address}", _reconnectAttempt, ipcAddress);
 
+                Stream stream;
                 if (OperatingSystem.IsWindows())
                 {
                     var pipeName = ExamAwareIpcClient.NormalizeIpcName(ExamAwareIpcClient.DefaultIpcName);
@@ -161,8 +175,10 @@ public class ExamAwareConnectionService : IDisposable
                     stream = new NetworkStream(socket, ownsSocket: true);
                 }
 
-                _currentStream = stream;
-                _lastConnectedAt = DateTime.Now;
+                lock (_streamLock)
+                {
+                    _currentStream = stream;
+                }
                 _reconnectAttempt = 0;
                 SetConnected(true);
                 _logger.LogInformation("已成功连接 ExamAware2 IPC");
@@ -190,10 +206,7 @@ public class ExamAwareConnectionService : IDisposable
             }
             finally
             {
-                if (stream != null && stream != _currentStream)
-                {
-                    try { stream.Close(); stream.Dispose(); } catch { /* ignore */ }
-                }
+                CleanupStream();
             }
 
             if (!ct.IsCancellationRequested)
@@ -240,8 +253,13 @@ public class ExamAwareConnectionService : IDisposable
                 }
 
                 var json = Encoding.UTF8.GetString(lineBytes).Trim();
-                if (string.IsNullOrEmpty(json)) continue;
+                if (string.IsNullOrEmpty(json))
+                {
+                    _logger.LogTrace("收到空行，跳过");
+                    continue;
+                }
 
+                _logger.LogTrace("收到 IPC 消息: {Json}", json.Length > 200 ? json[..200] + "..." : json);
                 ProcessMessage(json);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -268,11 +286,18 @@ public class ExamAwareConnectionService : IDisposable
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            // 判断消息类型：exam-event（服务端推送）还是命令响应
-            var hasType = root.TryGetProperty("type", out var typeElement);
-            if (!hasType) return;
+            if (!root.TryGetProperty("type", out var typeElement))
+            {
+                _logger.LogWarning("收到的 IPC 消息缺少 type 字段: {Json}", json[..Math.Min(200, json.Length)]);
+                return;
+            }
 
             var type = typeElement.GetString();
+            if (string.IsNullOrEmpty(type))
+            {
+                _logger.LogWarning("收到的 IPC 消息 type 为空");
+                return;
+            }
 
             // 服务端推送的考试事件
             if (type == "exam-event")
@@ -280,7 +305,7 @@ public class ExamAwareConnectionService : IDisposable
                 var eventMsg = JsonSerializer.Deserialize<ExamEventMessage>(json, _jsonOptions);
                 if (eventMsg?.Data == null)
                 {
-                    _logger.LogWarning("收到无效的考试事件消息");
+                    _logger.LogWarning("收到无效的考试事件消息: {Json}", json[..Math.Min(200, json.Length)]);
                     return;
                 }
 
@@ -289,14 +314,17 @@ public class ExamAwareConnectionService : IDisposable
                 switch (eventMsg.Event)
                 {
                     case "exam-presentation-start":
+                        IsPresentationActive = true;
                         _logger.LogInformation("考试放映开始: {Name} (配置: {Config})", eventMsg.Data.ExamName, eventMsg.Data.ExamConfigName);
                         ExamPresentationStart?.Invoke(this, eventMsg.Data);
                         break;
                     case "exam-presentation-stop":
+                        IsPresentationActive = false;
                         _logger.LogInformation("考试放映停止: {Name}", eventMsg.Data.ExamName);
                         ExamPresentationStop?.Invoke(this, eventMsg.Data);
                         break;
                     case "exam-start":
+                        IsExamActive = true;
                         _logger.LogInformation("考试开始: {Name} (开始: {Start}, 结束: {End})", eventMsg.Data.ExamName, eventMsg.Data.StartTime, eventMsg.Data.EndTime);
                         ExamStart?.Invoke(this, eventMsg.Data);
                         break;
@@ -305,6 +333,7 @@ public class ExamAwareConnectionService : IDisposable
                         ExamTimeRemaining?.Invoke(this, eventMsg.Data);
                         break;
                     case "exam-end":
+                        IsExamActive = false;
                         _logger.LogInformation("考试结束: {Name}", eventMsg.Data.ExamName);
                         ExamEnd?.Invoke(this, eventMsg.Data);
                         break;

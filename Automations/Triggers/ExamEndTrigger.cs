@@ -17,7 +17,7 @@ public class ExamEndTrigger(ExamAwareConnectionService connectionService, ILogge
     public override void Loaded()
     {
         ConnectionService.ExamEnd += OnExamEnd;
-        Logger.LogDebug("触发器已加载: 考试结束时");
+        Logger.LogInformation("触发器已加载: 考试结束时");
     }
 
     public override void UnLoaded()

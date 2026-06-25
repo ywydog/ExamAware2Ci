@@ -18,7 +18,14 @@ public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionS
     {
         ConnectionService.ExamPresentationStart += OnExamPresentationStart;
         ConnectionService.ExamPresentationStop += OnExamPresentationStop;
-        Logger.LogDebug("触发器已加载: 进入考试放映时");
+        Logger.LogInformation("触发器已加载: 进入考试放映时");
+
+        // 如果加载时已经在放映中，立即触发，避免错过连接前已发生的事件
+        if (ConnectionService.IsConnected && ConnectionService.IsPresentationActive)
+        {
+            Logger.LogInformation("加载时发现正在放映考试，立即触发");
+            OnExamPresentationStart(this, ConnectionService.LastEventData ?? new Models.ExamEventData());
+        }
     }
 
     public override void UnLoaded()

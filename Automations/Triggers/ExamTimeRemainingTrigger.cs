@@ -19,7 +19,7 @@ public class ExamTimeRemainingTrigger(ExamAwareConnectionService connectionServi
     {
         ConnectionService.ExamTimeRemaining += OnExamTimeRemaining;
         ConnectionService.ExamEnd += OnExamEnd;
-        Logger.LogDebug("触发器已加载: 考试时间剩余提醒时");
+        Logger.LogInformation("触发器已加载: 考试时间剩余提醒时");
     }
 
     public override void UnLoaded()

@@ -66,6 +66,7 @@ public class Plugin : PluginBase
                 }
             };
 
+            _logger?.LogInformation("正在启动 ExamAware2 IPC 连接...");
             _ = connectionService.StartAsync();
 
             // 初始化规则处理服务
