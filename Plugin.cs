@@ -78,7 +78,7 @@ public class Plugin : PluginBase
 
         // 规则集
         services.AddRule<ExamPlayingRuleSettings, ExamPlayingRuleSettingsControl>(
-            ExamAware2CiIds.ExamPlayingRule, "正在考试时", "\uE7B8");
+            ExamAware2CiIds.ExamPlayingRule, "ExamAware2 - 正在考试时", "\uE7B8");
     }
 
     /// <summary>
