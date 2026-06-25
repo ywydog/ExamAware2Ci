@@ -9,7 +9,7 @@ namespace ExamAware2Ci.Automations.Triggers;
 /// <summary>
 /// 当考试还有多少时间时触发，考试结束时恢复
 /// </summary>
-[TriggerInfo(Plugin.ExamAware2CiIds.ExamTimeRemainingTrigger, "ExamAware2 - 考试时间剩余提醒时", "\uE823")]
+[TriggerInfo(Plugin.ExamAware2CiIds.ExamTimeRemainingTrigger, "考试时间剩余提醒时", "\uE823")]
 public class ExamTimeRemainingTrigger(ExamAwareConnectionService connectionService, ILogger<ExamTimeRemainingTrigger> logger) : TriggerBase<ExamTimeRemainingTriggerSettings>
 {
     private ExamAwareConnectionService ConnectionService { get; } = connectionService;

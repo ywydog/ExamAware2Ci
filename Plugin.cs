@@ -1,13 +1,16 @@
 using ClassIsland.Core;
 using ClassIsland.Core.Abstractions;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
+using ClassIsland.Core.Models.Automation;
 using ClassIsland.Shared;
 using ExamAware2Ci.Automations.Actions;
 using ExamAware2Ci.Automations.Triggers;
 using ExamAware2Ci.Controls.Automations.ActionSettingsControls;
 using ExamAware2Ci.Controls.Automations.RuleSettingsControls;
 using ExamAware2Ci.Controls.Automations.TriggerSettingsControls;
+using ExamAware2Ci.Models.Automations.Actions;
 using ExamAware2Ci.Models.Automations.Rules;
 using ExamAware2Ci.Services;
 using ExamAware2Ci.Services.Automations;
@@ -61,6 +64,9 @@ public class Plugin : PluginBase
     /// </summary>
     private void RegisterExamAware2CiFeatures(IServiceCollection services)
     {
+        // 构建 ExamAware2 联动行动的菜单树（参照 SystemTools）
+        BuildExamAware2ActionTree();
+
         // 连接服务：通过 IPC 长连接接收 ExamAware2 推送的考试事件
         services.AddSingleton<ExamAwareConnectionService>();
 
@@ -78,7 +84,21 @@ public class Plugin : PluginBase
 
         // 规则集
         services.AddRule<ExamPlayingRuleSettings, ExamPlayingRuleSettingsControl>(
-            ExamAware2CiIds.ExamPlayingRule, "ExamAware2 - 正在考试时", "\uE7B8");
+            ExamAware2CiIds.ExamPlayingRule, "正在考试时", "\uE7B8");
+    }
+
+    /// <summary>
+    /// 手动构建 ExamAware2 联动行动的菜单树，使其在"添加行动"菜单中显示在统一分组下
+    /// </summary>
+    private void BuildExamAware2ActionTree()
+    {
+        IActionService.ActionMenuTree.Add(new ActionMenuTreeGroup("ExamAware2", "\uE7B8"));
+        IActionService.ActionMenuTree["ExamAware2"].Add(
+            new ActionMenuTreeItem<PlayExamActionSettings>(
+                ExamAware2CiIds.PlayExamAction,
+                "放映考试信息",
+                "\uE7B8",
+                s => s.SourceType = ExamSourceType.Url));
     }
 
     /// <summary>
