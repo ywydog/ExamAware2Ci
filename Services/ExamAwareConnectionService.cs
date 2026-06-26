@@ -384,6 +384,12 @@ public class ExamAwareConnectionService : IDisposable
         if (_isConnected != connected)
         {
             _isConnected = connected;
+            if (!connected)
+            {
+                IsExamActive = false;
+                IsPresentationActive = false;
+                _isSubscribed = false;
+            }
             ConnectionStateChanged?.Invoke(this, connected);
         }
     }

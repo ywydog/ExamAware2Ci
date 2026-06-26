@@ -9,6 +9,7 @@ namespace ExamAware2Ci.Shared;
 
 public static class ExamAwareIpcClient
 {
+    // 注意：此名称必须与 ExamAware2 服务端 ipcServer.ts 中的 IPC_NAME 保持一致
     public static string DefaultIpcName = "ExamAware2.examaware2";
 
     public static string NormalizeIpcName(string ipcName)

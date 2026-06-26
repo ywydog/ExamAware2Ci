@@ -140,6 +140,9 @@ public class Plugin : PluginBase
     private void OnAppStopping(object? sender, EventArgs args)
     {
         _logger?.LogInformation("插件正在关闭，断开 ExamAware2 连接...");
+        var ruleHandlerService = IAppHost.GetService<RuleHandlerService>();
+        ruleHandlerService.Unregister();
+
         var connectionService = IAppHost.GetService<ExamAwareConnectionService>();
         connectionService.Dispose();
         _logger?.LogInformation("插件已关闭");
