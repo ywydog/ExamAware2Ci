@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using ClassIsland.Core.Abstractions.Controls;
@@ -17,17 +18,20 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
         var window = TopLevel.GetTopLevel(this) as Window;
         if (window == null) return;
 
+        var fileTypes = new List<FilePickerFileType>
+        {
+            new("考试档案文件 (.ea2)") { Patterns = ["*.ea2"] },
+            new("JSON 配置 (.json)") { Patterns = ["*.json"] },
+            new("所有文件") { Patterns = ["*.*"] }
+        };
+
         if (Settings.SourceType == ExamSourceType.File)
         {
             var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 AllowMultiple = false,
                 Title = "选择考试档案文件",
-                FileTypeFilter =
-                [
-                    new FilePickerFileType("考试档案文件") { Patterns = ["*.ea2"] },
-                    new FilePickerFileType("所有文件") { Patterns = ["*.*"] }
-                ]
+                FileTypeFilter = fileTypes
             });
             if (files.Count > 0)
             {
@@ -41,11 +45,7 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
             {
                 AllowMultiple = false,
                 Title = "选择考试档案文件",
-                FileTypeFilter =
-                [
-                    new FilePickerFileType("考试档案文件") { Patterns = ["*.ea2"] },
-                    new FilePickerFileType("所有文件") { Patterns = ["*.*"] }
-                ]
+                FileTypeFilter = fileTypes
             });
             if (files.Count > 0)
             {
