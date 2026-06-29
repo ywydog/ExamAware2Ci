@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
+        <IsPackable>false</IsPackable>
+        <RootNamespace>ExamAware2Ci.Tests</RootNamespace>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
+        <PackageReference Include="xunit" Version="2.*" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.*" />
+    </ItemGroup>
+    <ItemGroup>
+        <!-- 本项目自己的源码 -->
+        <Compile Include="**/*.cs" Exclude="obj/**;bin/**" />
+        <!-- 被测项目的源码（按需 include，避免与默认 glob 冲突） -->
+        <Compile Include="/workspace/ExamAware2Ci/Services/ExamAwareConnectionService.cs" Link="Sources/ExamAwareConnectionService.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/ExamEventData.cs" Link="Sources/ExamEventData.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/ExamEventMessage.cs" Link="Sources/ExamEventMessage.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/ExamStatusData.cs" Link="Sources/ExamStatusData.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Shared/ExamAwareIpcClient.cs" Link="Sources/ExamAwareIpcClient.cs" />
+    </ItemGroup>
+</Project>

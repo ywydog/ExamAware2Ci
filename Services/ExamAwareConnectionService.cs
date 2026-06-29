@@ -16,11 +16,17 @@ public class ExamAwareConnectionService : IDisposable
 {
     private readonly ILogger<ExamAwareConnectionService> _logger;
     private CancellationTokenSource? _cts;
+    private Task? _loopTask;
     private Stream? _currentStream;
     private readonly object _streamLock = new();
     private bool _isConnected;
     private bool _isSubscribed;
     private int _reconnectAttempt;
+    private bool _disposed;
+    // 将自动属性改为显式字段，便于通过 ref readonly 暴露给外部跨线程读取
+    private bool _isExamActive;
+    private bool _isPresentationActive;
+    private long _lastEventTimestamp;
 
     /// <summary>
     /// 连接状态变化事件
@@ -65,12 +71,12 @@ public class ExamAwareConnectionService : IDisposable
     /// <summary>
     /// 是否正在放映考试信息
     /// </summary>
-    public bool IsPresentationActive { get; private set; }
+    public bool IsPresentationActive => _isPresentationActive;
 
     /// <summary>
     /// 是否正在考试进行中
     /// </summary>
-    public bool IsExamActive { get; private set; }
+    public bool IsExamActive => _isExamActive;
 
     /// <summary>
     /// 是否已连接
@@ -81,6 +87,16 @@ public class ExamAwareConnectionService : IDisposable
     /// 是否已订阅考试事件
     /// </summary>
     public bool IsSubscribed => _isSubscribed;
+
+    /// <summary>
+    /// 暴露底层字段的引用，便于外部通过 <see cref="Volatile.Read(ref bool)"/>
+    /// 或 <see cref="Volatile.Write(ref bool, bool)"/> 进行线程安全的读写。
+    /// 跨线程读取 IsExamActive / IsPresentationActive / IsSubscribed 时应优先使用此引用，
+    /// 避免编译器对普通属性访问进行缓存或重排优化导致状态不可见。
+    /// </summary>
+    public ref bool IsExamActiveRef => ref _isExamActive;
+    public ref bool IsPresentationActiveRef => ref _isPresentationActive;
+    public ref bool IsSubscribedRef => ref _isSubscribed;
 
     /// <summary>
     /// 重连尝试次数
@@ -95,33 +111,70 @@ public class ExamAwareConnectionService : IDisposable
     /// <summary>
     /// 启动连接
     /// </summary>
-    public async Task StartAsync()
+    public Task StartAsync()
     {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(ExamAwareConnectionService));
+        }
         if (_cts != null)
         {
             _logger.LogWarning("连接服务已在运行中");
-            return;
+            return Task.CompletedTask;
         }
 
         _logger.LogInformation("正在启动 IPC 连接服务");
-        _cts = new CancellationTokenSource();
-        _ = RunConnectionLoop(_cts.Token);
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        // 保存后台循环 Task，便于 StopAsync 等待其退出
+        _loopTask = Task.Run(() => RunConnectionLoop(cts.Token), cts.Token);
+        return Task.CompletedTask;
     }
 
     /// <summary>
-    /// 停止连接
+    /// 停止连接，<paramref name="timeout"/> 内等待后台循环退出。
     /// </summary>
-    public async Task StopAsync()
+    public async Task StopAsync(TimeSpan? timeout = null)
     {
+        if (_cts == null) return;
         _logger.LogInformation("正在停止 IPC 连接服务...");
 
-        _cts?.Cancel();
+        var cts = Interlocked.Exchange(ref _cts, null);
+        if (cts != null)
+        {
+            try { cts.Cancel(); } catch { /* 忽略 */ }
+        }
         CleanupStream();
-        _cts?.Dispose();
-        _cts = null;
-        SetConnected(false);
+
+        // 等后台循环退出（最多 timeout 秒）
+        var loop = _loopTask;
+        if (loop != null)
+        {
+            try
+            {
+                if (timeout is { } t && t > TimeSpan.Zero)
+                {
+                    var completed = await Task.WhenAny(loop, Task.Delay(t)).ConfigureAwait(false);
+                    if (completed != loop)
+                    {
+                        _logger.LogWarning("停止 ExamAware2 连接服务超时（{Timeout}s）", t.TotalSeconds);
+                    }
+                }
+                else
+                {
+                    await loop.ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "等待连接循环退出时出现异常");
+            }
+            _loopTask = null;
+        }
+
+        try { cts?.Dispose(); } catch { /* 忽略 */ }
         _isSubscribed = false;
-        await Task.CompletedTask;
+        SetConnected(false);
     }
 
     private void CleanupStream()
@@ -150,7 +203,6 @@ public class ExamAwareConnectionService : IDisposable
                 _reconnectAttempt++;
                 _isSubscribed = false;
                 var ipcAddress = ExamAwareIpcClient.GetIpcAddress(ExamAwareIpcClient.DefaultIpcName);
-
                 _logger.LogInformation("正在连接 ExamAware2 IPC (第 {Attempt} 次): {Address}", _reconnectAttempt, ipcAddress);
 
                 Stream stream;
@@ -241,11 +293,19 @@ public class ExamAwareConnectionService : IDisposable
 
     private async Task ReceiveMessagesAsync(Stream stream, CancellationToken ct)
     {
+        // carry 用于在多次 ReadLineAsync 调用之间保留残余字节。
+        // 关键：底层 NetworkStream/NamedPipeClientStream 没有用户态行缓冲，
+        // 一次 ReadAsync 可能吞下 N 条消息的字节；把多余字节放到 carry 才能保证
+        // 严格按 \n 切分。
+        var carry = new byte[1 * 1024 * 1024];
+        var carryLen = 0;
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var lineBytes = await ExamAwareIpcClient.ReadLineAsync(stream, maxBytes: 1024 * 1024, ct);
+                var (lineBytes, newCarryLen) = await ExamAwareIpcClient.ReadLineAsync(
+                    stream, maxBytes: 1024 * 1024, carry, carryLen, ct);
+                carryLen = newCarryLen;
                 if (lineBytes == null || lineBytes.Length == 0)
                 {
                     _logger.LogWarning("IPC 连接已关闭（收到空数据）");
@@ -279,6 +339,12 @@ public class ExamAwareConnectionService : IDisposable
         PropertyNameCaseInsensitive = true
     };
 
+    /// <summary>
+    /// 已处理的最近事件时间戳。用于忽略回放的陈旧/乱序事件。
+    /// 初始为 0，收到首个事件后即被更新。
+    /// </summary>
+    /// <remarks>字段定义在类顶部以便与其它状态一起管理。</remarks>
+
     private void ProcessMessage(string json)
     {
         try
@@ -309,22 +375,33 @@ public class ExamAwareConnectionService : IDisposable
                     return;
                 }
 
+                // 忽略时间戳早于（或等于）已处理事件的回放包，避免断连-重连后状态错乱
+                if (eventMsg.Timestamp > 0 && eventMsg.Timestamp < _lastEventTimestamp)
+                {
+                    _logger.LogDebug("忽略陈旧的考试事件: {Event} (ts={Ts} < {Last})", eventMsg.Event, eventMsg.Timestamp, _lastEventTimestamp);
+                    return;
+                }
+                if (eventMsg.Timestamp > _lastEventTimestamp)
+                {
+                    _lastEventTimestamp = eventMsg.Timestamp;
+                }
+
                 LastEventData = eventMsg.Data;
 
                 switch (eventMsg.Event)
                 {
                     case "exam-presentation-start":
-                        IsPresentationActive = true;
+                        _isPresentationActive = true;
                         _logger.LogInformation("考试放映开始: {Name} (配置: {Config})", eventMsg.Data.ExamName, eventMsg.Data.ExamConfigName);
                         ExamPresentationStart?.Invoke(this, eventMsg.Data);
                         break;
                     case "exam-presentation-stop":
-                        IsPresentationActive = false;
+                        _isPresentationActive = false;
                         _logger.LogInformation("考试放映停止: {Name}", eventMsg.Data.ExamName);
                         ExamPresentationStop?.Invoke(this, eventMsg.Data);
                         break;
                     case "exam-start":
-                        IsExamActive = true;
+                        _isExamActive = true;
                         _logger.LogInformation("考试开始: {Name} (开始: {Start}, 结束: {End})", eventMsg.Data.ExamName, eventMsg.Data.StartTime, eventMsg.Data.EndTime);
                         ExamStart?.Invoke(this, eventMsg.Data);
                         break;
@@ -333,7 +410,7 @@ public class ExamAwareConnectionService : IDisposable
                         ExamTimeRemaining?.Invoke(this, eventMsg.Data);
                         break;
                     case "exam-end":
-                        IsExamActive = false;
+                        _isExamActive = false;
                         _logger.LogInformation("考试结束: {Name}", eventMsg.Data.ExamName);
                         ExamEnd?.Invoke(this, eventMsg.Data);
                         break;
@@ -383,20 +460,53 @@ public class ExamAwareConnectionService : IDisposable
     {
         if (_isConnected != connected)
         {
+            var wasExamActive = IsExamActive;
+            var wasPresentationActive = IsPresentationActive;
+            var prevData = LastEventData;
             _isConnected = connected;
             if (!connected)
             {
-                IsExamActive = false;
-                IsPresentationActive = false;
+                _isExamActive = false;
+                _isPresentationActive = false;
                 _isSubscribed = false;
+                // 重置时间戳基线，确保下次重连后能正确处理服务端最新事件回放
+                _lastEventTimestamp = 0;
             }
             ConnectionStateChanged?.Invoke(this, connected);
+
+            // 断连时若考试/放映处于进行中，必须派发对应的结束事件，
+            // 否则依赖 ExamStart / ExamPresentationStart 触发器的行动将永远卡在已触发态。
+            if (!connected)
+            {
+                if (wasPresentationActive)
+                {
+                    _logger.LogWarning("与 ExamAware2 断开连接，强制派发 ExamPresentationStop 以恢复相关触发器");
+                    ExamPresentationStop?.Invoke(this, prevData ?? new ExamEventData());
+                }
+                if (wasExamActive)
+                {
+                    _logger.LogWarning("与 ExamAware2 断开连接，强制派发 ExamEnd 以恢复相关触发器");
+                    ExamEnd?.Invoke(this, prevData ?? new ExamEventData());
+                }
+            }
         }
     }
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _logger.LogInformation("正在释放连接服务资源...");
-        _ = StopAsync();
+        // 同步等待后台任务退出（最多 2 秒），避免在宿主进程卸载时
+        // 出现"已释放的连接服务仍持有事件订阅"等竞态。
+        try
+        {
+            StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止 ExamAware2 连接服务时发生异常");
+        }
+        GC.SuppressFinalize(this);
     }
 }

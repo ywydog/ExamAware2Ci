@@ -1,60 +1,59 @@
 using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace ExamAware2Ci.Shared;
 
+/// <summary>
+/// 与 ExamAware2 通信的 IPC 客户端（Named Pipe / Unix Domain Socket）
+/// </summary>
 public static class ExamAwareIpcClient
 {
-    // 注意：此名称必须与 ExamAware2 服务端 ipcServer.ts 中的 IPC_NAME 保持一致
-    public static string DefaultIpcName = "ExamAware2.examaware2";
+    public static string DefaultIpcName { get; set; } = "ExamAware2.examaware2";
 
-    public static string NormalizeIpcName(string ipcName)
+    private const int MaxLineBytes = 1 * 1024 * 1024; // 1MB 单行上限
+
+    /// <summary>
+    /// 从流中读取一行（以 \n 结尾），并把行内多余字节保留在 <paramref name="carry"/> 中以备下次调用。
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ 关键实现要点：底层 <see cref="NetworkStream"/> / <see cref="NamedPipeClientStream"/>
+    /// 没有用户态行缓冲——一次 <c>ReadAsync</c> 可能吞下 N 条消息的字节。如果调用方每次只
+    /// "读到 \n 就 return"，则剩下那部分字节会**永远丢失**（再调用 ReadAsync 时
+    /// 会因对端没有新数据而阻塞）。本方法在调用方提供的 <paramref name="carry"/> 中
+    /// 保留残余字节，下一次调用先消费 carry、再读流，从而保证行解析严格按 \n 切分。
+    /// </remarks>
+    public static async Task<(byte[]? line, int carryLen)> ReadLineAsync(
+        Stream stream, int maxBytes, byte[]? carry, int carryLen, CancellationToken ct)
     {
-        var value = (ipcName ?? string.Empty).Trim();
-        if (value.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
+        maxBytes = Math.Min(maxBytes, MaxLineBytes);
+        var collected = new List<byte>(256);
+
+        // 先把上次的 carry 拷过来
+        if (carry != null && carryLen > 0)
         {
-            value = value.Substring(@"\\.\pipe\".Length);
+            for (var i = 0; i < carryLen; i++)
+            {
+                collected.Add(carry[i]);
+                if (carry[i] == (byte)'\n')
+                {
+                    // 把 carry 剩余部分（如果有）保留在返回的 carry 中
+                    var remaining = carryLen - 1 - i;
+                    if (remaining > 0)
+                    {
+                        Array.Copy(carry, i + 1, carry!, 0, remaining);
+                    }
+                    return (collected.ToArray(), remaining);
+                }
+            }
         }
 
-        if (value.StartsWith("/tmp/", StringComparison.OrdinalIgnoreCase) &&
-            value.EndsWith(".sock", StringComparison.OrdinalIgnoreCase))
-        {
-            value = value.Substring("/tmp/".Length);
-            value = value.Substring(0, value.Length - ".sock".Length);
-        }
-
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            value = "ipc";
-        }
-
-        value = value.Replace(" ", "_").Replace("/", "_").Replace("\\", "_").Replace(":", "_");
-        return value;
-    }
-
-    public static string GetIpcAddress(string ipcName)
-    {
-        var name = NormalizeIpcName(ipcName);
-        if (OperatingSystem.IsWindows())
-        {
-            return $@"\\.\pipe\{name}";
-        }
-
-        return $"/tmp/{name}.sock";
-    }
-
-    public static async Task<byte[]?> ReadLineAsync(Stream stream, int maxBytes, CancellationToken ct)
-    {
         var buffer = new byte[4096];
-        var collected = new List<byte>(4096);
-
         while (collected.Count < maxBytes)
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct);
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
             if (read <= 0)
             {
                 break;
@@ -62,111 +61,137 @@ public static class ExamAwareIpcClient
 
             for (var i = 0; i < read; i++)
             {
-                var b = buffer[i];
-                collected.Add(b);
-                if (b == (byte)'\n')
+                collected.Add(buffer[i]);
+                if (buffer[i] == (byte)'\n')
                 {
-                    return collected.ToArray();
-                }
-
-                if (collected.Count >= maxBytes)
-                {
-                    return collected.ToArray();
+                    // 把 buffer 中剩余字节（i+1..read-1）写回 carry
+                    var remaining = read - 1 - i;
+                    if (remaining > 0 && carry != null)
+                    {
+                        Array.Copy(buffer, i + 1, carry, 0, remaining);
+                    }
+                    return (collected.ToArray(), remaining);
                 }
             }
         }
 
-        return collected.Count == 0 ? null : collected.ToArray();
+        return collected.Count == 0 ? (null, 0) : (collected.ToArray(), 0);
     }
 
-    public static async Task<JsonObject> SendCommandAsync(
-        string type, object? payload = null, string? ipcName = null, TimeSpan? timeout = null)
+    /// <summary>
+    /// 兼容旧调用：忽略 carry 信息的便利重载（每次调用间不保留残余字节，
+    /// 仅适用于单次读一行的场景，例如 <see cref="SendCommandAsync"/> 等待服务端的单行响应）。
+    /// </summary>
+    public static async Task<byte[]?> ReadLineAsync(Stream stream, int maxBytes, CancellationToken ct)
     {
-        ipcName ??= DefaultIpcName;
-        timeout ??= TimeSpan.FromSeconds(5);
+        var carry = new byte[MaxLineBytes];
+        var (line, _) = await ReadLineAsync(stream, maxBytes, carry, 0, ct).ConfigureAwait(false);
+        return line;
+    }
 
-        var address = GetIpcAddress(ipcName);
-        var messageJson = JsonSerializer.Serialize(
-            new Dictionary<string, object?>
-            {
-                ["type"] = type,
-                ["payload"] = payload ?? new { }
-            },
-            new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }
-        );
-        var requestBytes = Encoding.UTF8.GetBytes(messageJson + "\n");
+    /// <summary>
+    /// 把 IPC name 规整成 raw name（去掉平台前缀/后缀）。
+    /// 服务端在拼装地址前也会走同样的逻辑，因此客户端和服务端必须保持一致。
+    /// </summary>
+    public static string NormalizeIpcName(string ipcName)
+    {
+        if (string.IsNullOrEmpty(ipcName)) return ipcName;
 
-        using var cts = new CancellationTokenSource(timeout.Value);
+        // 去掉 Windows 命名管道前缀
+        if (ipcName.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
+        {
+            ipcName = ipcName.Substring(@"\\.\pipe\".Length);
+        }
+
+        // 把跨平台的 raw name 规整：替换反斜杠、斜杠、空格、冒号为下划线
+        var invalid = new[] { '\\', '/', ' ', ':' };
+        foreach (var c in invalid)
+        {
+            ipcName = ipcName.Replace(c, '_');
+        }
+
+        return ipcName;
+    }
+
+    /// <summary>
+    /// 把 raw IPC name 解析为平台相关的地址。
+    /// </summary>
+    public static string GetIpcAddress(string ipcName)
+    {
+        var name = NormalizeIpcName(ipcName);
+        if (OperatingSystem.IsWindows())
+        {
+            return $@"\\.\pipe\{name}";
+        }
+        return $"/tmp/{name}.sock";
+    }
+
+    /// <summary>
+    /// 创建到 IPC 端点的连接流。
+    /// </summary>
+    public static async Task<Stream> ConnectAsync(string ipcName, int timeoutMs, CancellationToken ct)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var pipeName = NormalizeIpcName(ipcName);
+            var pipe = new NamedPipeClientStream(
+                serverName: ".",
+                pipeName: pipeName,
+                direction: PipeDirection.InOut,
+                options: PipeOptions.Asynchronous);
+            await pipe.ConnectAsync(timeoutMs, ct).ConfigureAwait(false);
+            return pipe;
+        }
+        else
+        {
+            var address = GetIpcAddress(ipcName);
+            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            var endPoint = new UnixDomainSocketEndPoint(address);
+            using var timeoutCts = new CancellationTokenSource(timeoutMs);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+            await socket.ConnectAsync(endPoint, linked.Token).ConfigureAwait(false);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+    }
+
+    /// <summary>
+    /// 发送一条 JSON 命令并读取一条 JSON 响应。
+    /// </summary>
+    public static async Task<JsonObject> SendCommandAsync(string command, object? payload = null, int timeoutMs = 5000)
+    {
+        using var cts = new CancellationTokenSource(timeoutMs);
         try
         {
-            if (OperatingSystem.IsWindows())
+            using var stream = await ConnectAsync(DefaultIpcName, timeoutMs, cts.Token).ConfigureAwait(false);
+
+            var req = new JsonObject
             {
-                var pipeName = NormalizeIpcName(ipcName);
-                await using var pipe = new NamedPipeClientStream(
-                    serverName: ".",
-                    pipeName: pipeName,
-                    direction: PipeDirection.InOut,
-                    options: PipeOptions.Asynchronous
-                );
+                ["type"] = command,
+                ["payload"] = payload != null ? JsonSerializer.SerializeToNode(payload) : new JsonObject()
+            };
+            var bytes = Encoding.UTF8.GetBytes(req.ToJsonString() + "\n");
+            await stream.WriteAsync(bytes, cts.Token).ConfigureAwait(false);
+            await stream.FlushAsync(cts.Token).ConfigureAwait(false);
 
-                var connectTimeoutMs = (int)Math.Clamp(timeout.Value.TotalMilliseconds, 1, int.MaxValue);
-                await pipe.ConnectAsync(connectTimeoutMs, cts.Token);
-                await pipe.WriteAsync(requestBytes.AsMemory(0, requestBytes.Length), cts.Token);
-                await pipe.FlushAsync(cts.Token);
-
-                var responseLine = await ReadLineAsync(pipe, maxBytes: 1024 * 1024, cts.Token);
-                if (responseLine is null || responseLine.Length == 0)
-                {
-                    return new JsonObject
-                    {
-                        ["success"] = false,
-                        ["error"] = "empty_response"
-                    };
-                }
-
-                var responseText = Encoding.UTF8.GetString(responseLine).Trim();
-                var node = JsonNode.Parse(responseText) as JsonObject;
-                return node ?? new JsonObject { ["success"] = false, ["error"] = "invalid_response" };
+            // 服务端只发回单行响应，没有跨包合并问题
+            var respBytes = await ReadLineAsync(stream, MaxLineBytes, cts.Token).ConfigureAwait(false);
+            if (respBytes == null || respBytes.Length == 0)
+            {
+                return new JsonObject { ["success"] = false, ["error"] = "empty response" };
             }
-            else
+            var respStr = Encoding.UTF8.GetString(respBytes).Trim();
+            try
             {
-                var endPoint = new UnixDomainSocketEndPoint(address);
-                using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-
-                await socket.ConnectAsync(endPoint, cts.Token);
-
-                await using var stream = new NetworkStream(socket, ownsSocket: true);
-                await stream.WriteAsync(requestBytes.AsMemory(0, requestBytes.Length), cts.Token);
-                await stream.FlushAsync(cts.Token);
-
-                var responseLine = await ReadLineAsync(stream, maxBytes: 1024 * 1024, cts.Token);
-                if (responseLine is null || responseLine.Length == 0)
-                {
-                    return new JsonObject
-                    {
-                        ["success"] = false,
-                        ["error"] = "empty_response"
-                    };
-                }
-
-                var responseText = Encoding.UTF8.GetString(responseLine).Trim();
-                var node = JsonNode.Parse(responseText) as JsonObject;
-                return node ?? new JsonObject { ["success"] = false, ["error"] = "invalid_response" };
+                return JsonNode.Parse(respStr) as JsonObject ?? new JsonObject { ["success"] = false, ["error"] = "invalid response" };
+            }
+            catch (JsonException ex)
+            {
+                return new JsonObject { ["success"] = false, ["error"] = $"parse error: {ex.Message}" };
             }
         }
-        catch (Exception ex) when (
-            ex is TimeoutException ||
-            ex is OperationCanceledException ||
-            ex is SocketException ||
-            ex is IOException
-        )
+        catch (Exception ex)
         {
-            return new JsonObject
-            {
-                ["success"] = false,
-                ["error"] = "ipc_not_found",
-                ["detail"] = $"IPC 通道不存在或无法连接: {address}. 请确认 ExamAware2 已运行且已启用外部 IPC。"
-            };
+            return new JsonObject { ["success"] = false, ["error"] = ex.Message };
         }
     }
 }
