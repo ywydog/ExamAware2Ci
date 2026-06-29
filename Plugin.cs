@@ -74,10 +74,10 @@ public class Plugin : PluginBase
         services.AddSingleton<RuleHandlerService>();
 
         // 触发器
-        services.AddTrigger<ExamPresentationStartTrigger>();
-        services.AddTrigger<ExamStartTrigger>();
+        services.AddTrigger<ExamPresentationStartTrigger, ExamPresentationStartTriggerSettingsControl>();
+        services.AddTrigger<ExamStartTrigger, ExamStartTriggerSettingsControl>();
         services.AddTrigger<ExamTimeRemainingTrigger, ExamTimeRemainingTriggerSettingsControl>();
-        services.AddTrigger<ExamEndTrigger>();
+        services.AddTrigger<ExamEndTrigger, ExamEndTriggerSettingsControl>();
 
         // 行动
         services.AddAction<PlayExamAction, PlayExamActionSettingsControl>();

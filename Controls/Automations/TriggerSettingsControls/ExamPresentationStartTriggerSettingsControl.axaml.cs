@@ -4,12 +4,9 @@ using ExamAware2Ci.Models.Automations.Triggers;
 
 namespace ExamAware2Ci.Controls.Automations.TriggerSettingsControls;
 
-/// <summary>
-/// 考试时间剩余触发器设置控件
-/// </summary>
-public partial class ExamTimeRemainingTriggerSettingsControl : TriggerSettingsControlBase<ExamTimeRemainingTriggerSettings>
+public partial class ExamPresentationStartTriggerSettingsControl : TriggerSettingsControlBase<ExamPresentationStartTriggerSettings>
 {
-    public ExamTimeRemainingTriggerSettingsControl()
+    public ExamPresentationStartTriggerSettingsControl()
     {
         InitializeComponent();
         DataContext = this;

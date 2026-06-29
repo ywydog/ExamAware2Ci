@@ -24,6 +24,12 @@
         <Compile Include="/workspace/ExamAware2Ci/Models/ExamStatusData.cs" Link="Sources/ExamStatusData.cs" />
         <Compile Include="/workspace/ExamAware2Ci/Shared/ExamAwareIpcClient.cs" Link="Sources/ExamAwareIpcClient.cs" />
         <Compile Include="/workspace/ExamAware2Ci/Models/Automations/Actions/PlayExamActionSettings.cs" Link="Sources/PlayExamActionSettings.cs" />
+        <!-- 新版：考试事件过滤/触发器/规则测试用源码（不依赖 ClassIsland 桌面运行时） -->
+        <Compile Include="/workspace/ExamAware2Ci/Automations/Triggers/ExamEventFilterHelper.cs" Link="Sources/ExamEventFilterHelper.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/Automations/Triggers/ExamEventTriggerSettingsBase.cs" Link="Sources/ExamEventTriggerSettingsBase.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/Automations/Triggers/ExamTimeRemainingTriggerSettings.cs" Link="Sources/ExamTimeRemainingTriggerSettings.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/Automations/Rules/ExamPlayingRuleSettings.cs" Link="Sources/ExamPlayingRuleSettings.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/Automations/Rules/ExamPlayingRuleEvaluator.cs" Link="Sources/ExamPlayingRuleEvaluator.cs" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />

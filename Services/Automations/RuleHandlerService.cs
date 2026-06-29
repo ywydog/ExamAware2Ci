@@ -80,29 +80,12 @@ public class RuleHandlerService
 
     private bool HandleExamPlaying(object? objectSettings)
     {
-        if (!_connectionService.IsConnected)
-        {
-            return false;
-        }
-
-        var data = _connectionService.LastEventData;
-        if (data == null)
-        {
-            return false;
-        }
-
-        // 检查是否有正在进行的考试（放映中或考试已开始未结束）
-        var isExamPlaying = _connectionService.IsPresentationActive || _connectionService.IsExamActive;
-        if (!isExamPlaying)
-        {
-            return false;
-        }
-
-        if (objectSettings is ExamPlayingRuleSettings settings && settings.FilterByExamName)
-        {
-            return data.ExamName == settings.ExamName;
-        }
-
-        return true;
+        // 委托给纯函数式 evaluator，便于单元测试
+        return ExamPlayingRuleEvaluator.IsMatch(
+            objectSettings as ExamPlayingRuleSettings,
+            isConnected: _connectionService.IsConnected,
+            isExamActive: _connectionService.IsExamActive,
+            isPresentationActive: _connectionService.IsPresentationActive,
+            lastEventExamName: _connectionService.LastEventData?.ExamName);
     }
 }

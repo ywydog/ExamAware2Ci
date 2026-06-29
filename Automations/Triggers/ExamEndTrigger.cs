@@ -1,34 +1,41 @@
-using ClassIsland.Core.Abstractions.Automation;
 using ClassIsland.Core.Attributes;
+using ExamAware2Ci.Models.Automations.Triggers;
 using ExamAware2Ci.Services;
 using Microsoft.Extensions.Logging;
 
 namespace ExamAware2Ci.Automations.Triggers;
 
 /// <summary>
-/// 当考试结束时触发
+/// 当考试结束时触发。
+/// 可选按考试名（包含）过滤。
 /// </summary>
 [TriggerInfo(Plugin.ExamAware2CiIds.ExamEndTrigger, "考试结束时", "\uE894")]
-public class ExamEndTrigger(ExamAwareConnectionService connectionService, ILogger<ExamEndTrigger> logger) : TriggerBase
+public class ExamEndTrigger(
+    ExamAwareConnectionService connectionService,
+    ILogger<ExamEndTrigger> logger)
+    : ExamEventTriggerBase<ExamEndTrigger, ExamEndTriggerSettings>
 {
-    private ExamAwareConnectionService ConnectionService { get; } = connectionService;
-    private ILogger<ExamEndTrigger> Logger { get; } = logger;
+    private readonly ExamAwareConnectionService _connectionService = connectionService;
+    private readonly ILogger<ExamEndTrigger> _logger = logger;
 
-    public override void Loaded()
+    protected override void Subscribe(ExamAwareConnectionService service)
     {
-        ConnectionService.ExamEnd += OnExamEnd;
-        Logger.LogInformation("触发器已加载: 考试结束时");
+        service.ExamEnd += OnExamEnd;
     }
 
-    public override void UnLoaded()
+    protected override void Unsubscribe(ExamAwareConnectionService service)
     {
-        ConnectionService.ExamEnd -= OnExamEnd;
-        Logger.LogDebug("触发器已卸载: 考试结束时");
+        service.ExamEnd -= OnExamEnd;
     }
 
     private void OnExamEnd(object? sender, Models.ExamEventData e)
     {
-        Logger.LogInformation("触发: 考试结束时 - {Name}", e.ExamName);
+        if (!MatchesFilter(e))
+        {
+            _logger.LogDebug("考试结束触发器：过滤掉不匹配的事件 {Name}", e.ExamName);
+            return;
+        }
+        _logger.LogInformation("触发: 考试结束时 - {Name}", e.ExamName);
         Trigger();
     }
 }

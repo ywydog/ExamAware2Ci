@@ -1,49 +1,57 @@
-using ClassIsland.Core.Abstractions.Automation;
 using ClassIsland.Core.Attributes;
+using ExamAware2Ci.Models.Automations.Triggers;
 using ExamAware2Ci.Services;
 using Microsoft.Extensions.Logging;
 
 namespace ExamAware2Ci.Automations.Triggers;
 
 /// <summary>
-/// 当进入考试放映时触发，放映停止时恢复
+/// 当进入考试放映时触发，放映停止时恢复。
+/// 可选按考试名（包含）过滤。
 /// </summary>
 [TriggerInfo(Plugin.ExamAware2CiIds.ExamPresentationStartTrigger, "进入考试放映时", "\uE7B8")]
-public class ExamPresentationStartTrigger(ExamAwareConnectionService connectionService, ILogger<ExamPresentationStartTrigger> logger) : TriggerBase
+public class ExamPresentationStartTrigger(
+    ExamAwareConnectionService connectionService,
+    ILogger<ExamPresentationStartTrigger> logger)
+    : ExamEventTriggerBase<ExamPresentationStartTrigger, ExamPresentationStartTriggerSettings>
 {
-    private ExamAwareConnectionService ConnectionService { get; } = connectionService;
-    private ILogger<ExamPresentationStartTrigger> Logger { get; } = logger;
+    private readonly ExamAwareConnectionService _connectionService = connectionService;
+    private readonly ILogger<ExamPresentationStartTrigger> _logger = logger;
 
-    public override void Loaded()
+    protected override void Subscribe(ExamAwareConnectionService service)
     {
-        ConnectionService.ExamPresentationStart += OnExamPresentationStart;
-        ConnectionService.ExamPresentationStop += OnExamPresentationStop;
-        Logger.LogInformation("触发器已加载: 进入考试放映时");
-
-        // 如果加载时已经在放映中，立即触发，避免错过连接前已发生的事件
-        if (ConnectionService.IsConnected && ConnectionService.IsPresentationActive)
-        {
-            Logger.LogInformation("加载时发现正在放映考试，立即触发");
-            OnExamPresentationStart(this, ConnectionService.LastEventData ?? new Models.ExamEventData());
-        }
+        service.ExamPresentationStart += OnExamPresentationStart;
+        service.ExamPresentationStop += OnExamPresentationStop;
     }
 
-    public override void UnLoaded()
+    protected override void Unsubscribe(ExamAwareConnectionService service)
     {
-        ConnectionService.ExamPresentationStart -= OnExamPresentationStart;
-        ConnectionService.ExamPresentationStop -= OnExamPresentationStop;
-        Logger.LogDebug("触发器已卸载: 进入考试放映时");
+        service.ExamPresentationStart -= OnExamPresentationStart;
+        service.ExamPresentationStop -= OnExamPresentationStop;
+    }
+
+    protected override bool ShouldReplayOnLoad(ExamAwareConnectionService service) =>
+        service.IsPresentationActive && service.LastEventData != null;
+
+    protected override void ReplayCurrent(ExamAwareConnectionService service)
+    {
+        OnExamPresentationStart(service, service.LastEventData!);
     }
 
     private void OnExamPresentationStart(object? sender, Models.ExamEventData e)
     {
-        Logger.LogInformation("触发: 进入考试放映时 - {Name}", e.ExamName);
+        if (!MatchesFilter(e))
+        {
+            _logger.LogDebug("考试放映开始触发器：过滤掉不匹配的事件 {Name}", e.ExamName);
+            return;
+        }
+        _logger.LogInformation("触发: 进入考试放映时 - {Name}", e.ExamName);
         Trigger();
     }
 
     private void OnExamPresentationStop(object? sender, Models.ExamEventData e)
     {
-        Logger.LogInformation("恢复: 考试放映已停止 - {Name}", e.ExamName);
+        _logger.LogInformation("恢复: 考试放映已停止 - {Name}", e.ExamName);
         TriggerRevert();
     }
 }

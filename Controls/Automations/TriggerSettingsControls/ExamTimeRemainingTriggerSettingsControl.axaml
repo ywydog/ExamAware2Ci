@@ -2,15 +2,28 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="100"
+             mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="140"
              x:Class="ExamAware2Ci.Controls.Automations.TriggerSettingsControls.ExamTimeRemainingTriggerSettingsControl">
     <StackPanel Orientation="Vertical" Spacing="8" Margin="0,4">
         <TextBlock Text="考试时间剩余触发器设置" FontWeight="SemiBold" />
+
+        <CheckBox IsChecked="{Binding Settings.MatchAnyRemaining}" VerticalAlignment="Center">
+            任意剩余时间都触发（忽略下面的阈值）
+        </CheckBox>
+
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <TextBlock Text="提醒时间（分钟）:" VerticalAlignment="Center" />
             <NumericUpDown Minimum="1" Maximum="999"
                            Value="{Binding Settings.AlertTimeMinutes}"
+                           IsEnabled="{Binding !Settings.MatchAnyRemaining}"
                            Width="100" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="仅当考试名包含:" VerticalAlignment="Center" />
+            <TextBox Text="{Binding Settings.ExamNameFilter}"
+                     Watermark="留空表示不按考试名过滤"
+                     Width="220" />
         </StackPanel>
     </StackPanel>
 </UserControl>

@@ -59,9 +59,16 @@ public class ExamAwareConnectionService : IDisposable
     public event EventHandler<ExamEventData>? ExamEnd;
 
     /// <summary>
-    /// 最近一次考试事件数据
+    /// 最近一次考试事件数据。
+    /// 跨线程访问：写入通过 <see cref="Volatile.Write"/> 同步到主内存，
+    /// 读取通过 <see cref="Volatile.Read"/> 防止编译器/CPU 缓存。
     /// </summary>
-    public ExamEventData? LastEventData { get; private set; }
+    private ExamEventData? _lastEventData;
+    public ExamEventData? LastEventData
+    {
+        get => Volatile.Read(ref _lastEventData);
+        private set => Volatile.Write(ref _lastEventData, value);
+    }
 
     /// <summary>
     /// 当前考试状态
