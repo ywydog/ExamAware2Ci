@@ -30,4 +30,13 @@
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
     </ItemGroup>
+
+    <!-- Tests/ 子目录里的 .cs 文件是 xUnit 测试代码，依赖 xunit 包；
+         主项目不引用 xunit，所以把它们从主项目编译中排除，
+         避免 dotnet publish/Build 把它们当插件源码编译。 -->
+    <ItemGroup>
+        <Compile Remove="Tests/**/*.cs" />
+        <None Remove="Tests/**" />
+        <EmbeddedResource Remove="Tests/**" />
+    </ItemGroup>
 </Project>
