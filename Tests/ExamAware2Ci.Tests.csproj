@@ -23,5 +23,9 @@
         <Compile Include="/workspace/ExamAware2Ci/Models/ExamEventMessage.cs" Link="Sources/ExamEventMessage.cs" />
         <Compile Include="/workspace/ExamAware2Ci/Models/ExamStatusData.cs" Link="Sources/ExamStatusData.cs" />
         <Compile Include="/workspace/ExamAware2Ci/Shared/ExamAwareIpcClient.cs" Link="Sources/ExamAwareIpcClient.cs" />
+        <Compile Include="/workspace/ExamAware2Ci/Models/Automations/Actions/PlayExamActionSettings.cs" Link="Sources/PlayExamActionSettings.cs" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
     </ItemGroup>
 </Project>

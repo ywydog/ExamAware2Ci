@@ -1,6 +1,11 @@
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 using ExamAware2Ci.Models.Automations.Actions;
 
@@ -13,45 +18,80 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
         InitializeComponent();
     }
 
-    private async void BtnBrowse_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private static readonly IReadOnlyList<FilePickerFileType> FilePickerTypes = new List<FilePickerFileType>
+    {
+        new("考试档案文件 (.ea2)") { Patterns = ["*.ea2"] },
+        new("JSON 配置 (.json)") { Patterns = ["*.json"] },
+        new("所有文件") { Patterns = ["*.*"] }
+    };
+
+    private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
         var window = TopLevel.GetTopLevel(this) as Window;
         if (window == null) return;
 
-        var fileTypes = new List<FilePickerFileType>
+        var options = new FilePickerOpenOptions
         {
-            new("考试档案文件 (.ea2)") { Patterns = ["*.ea2"] },
-            new("JSON 配置 (.json)") { Patterns = ["*.json"] },
-            new("所有文件") { Patterns = ["*.*"] }
+            AllowMultiple = false,
+            Title = Settings.SourceType == ExamSourceType.File
+                ? "选择考试档案文件"
+                : "选择本地考试档案（将自动切换为“本地文件”模式）",
+            FileTypeFilter = FilePickerTypes
         };
 
-        if (Settings.SourceType == ExamSourceType.File)
+        var files = await window.StorageProvider.OpenFilePickerAsync(options);
+        if (files.Count == 0) return;
+
+        var path = files[0].Path.LocalPath;
+        // 不论当前模式是 URL 还是 File，选了本地文件就切到 File 模式
+        Settings.SourceType = ExamSourceType.File;
+        Settings.Source = path;
+        SetStatus($"已选择：{path}", isError: false);
+    }
+
+    private async void BtnTest_Click(object? sender, RoutedEventArgs e)
+    {
+        SetStatus("正在检查…", isError: false, busy: true);
+        try
         {
-            var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            // 让 UI 先刷新
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            var error = await Task.Run(() => Settings.Validate());
+            if (error == null)
             {
-                AllowMultiple = false,
-                Title = "选择考试档案文件",
-                FileTypeFilter = fileTypes
-            });
-            if (files.Count > 0)
+                var kind = Settings.SourceType == ExamSourceType.Url ? "URL" : "文件";
+                SetStatus($"✓ {kind} 看起来可用：{Settings.Source}", isError: false);
+            }
+            else
             {
-                Settings.Source = files[0].Path.LocalPath;
+                SetStatus($"✗ {error}", isError: true);
             }
         }
-        else
+        catch (Exception ex)
         {
-            // URL 模式下也可以选择本地文件，自动切换类型
-            var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                AllowMultiple = false,
-                Title = "选择考试档案文件",
-                FileTypeFilter = fileTypes
-            });
-            if (files.Count > 0)
-            {
-                Settings.SourceType = ExamSourceType.File;
-                Settings.Source = files[0].Path.LocalPath;
-            }
+            SetStatus($"✗ 校验异常：{ex.Message}", isError: true);
         }
+    }
+
+    private void BtnClear_Click(object? sender, RoutedEventArgs e)
+    {
+        Settings.Source = string.Empty;
+        SetStatus(null, isError: false);
+    }
+
+    private void SetStatus(string? text, bool isError, bool busy = false)
+    {
+        if (StatusText == null) return;
+        if (text == null)
+        {
+            StatusText.IsVisible = false;
+            StatusText.Text = string.Empty;
+            return;
+        }
+        StatusText.IsVisible = true;
+        StatusText.Text = text;
+        StatusText.Foreground = busy
+            ? Brushes.Gray
+            : (isError ? Brushes.IndianRed : Brushes.MediumSeaGreen);
     }
 }
