@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Data;
+using Avalonia.Data.Converters;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -35,7 +39,7 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
             AllowMultiple = false,
             Title = Settings.SourceType == ExamSourceType.File
                 ? "选择考试档案文件"
-                : "选择本地考试档案（将自动切换为“本地文件”模式）",
+                : "选择本地考试档案（将自动切换为"本地文件"模式）",
             FileTypeFilter = FilePickerTypes
         };
 
@@ -51,6 +55,9 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
 
     private async void BtnTest_Click(object? sender, RoutedEventArgs e)
     {
+        // 强制让 TextBox 把当前内容提交到绑定源，避免刚粘贴/输入完没失焦时取到旧值。
+        SourceBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+
         SetStatus("正在检查…", isError: false, busy: true);
         try
         {
@@ -76,6 +83,8 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
     private void BtnClear_Click(object? sender, RoutedEventArgs e)
     {
         Settings.Source = string.Empty;
+        // 清掉焦点，避免 TextBox 残留上一次输入但没提交
+        FocusManager.Instance?.Focus(null);
         SetStatus(null, isError: false);
     }
 
@@ -93,5 +102,74 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
         StatusText.Foreground = busy
             ? Brushes.Gray
             : (isError ? Brushes.IndianRed : Brushes.MediumSeaGreen);
+    }
+}
+
+/// <summary>
+/// ComboBox 显示用的"来源类型"选项。
+/// </summary>
+public sealed class ExamSourceTypeOption
+{
+    public ExamSourceType Value { get; init; }
+    public string Label { get; init; } = "";
+    public string Glyph { get; init; } = "";
+}
+
+/// <summary>
+/// ComboBox 用的"来源类型"提供器。
+/// </summary>
+public sealed class ExamSourceTypeOptionsProvider
+{
+    public IReadOnlyList<ExamSourceTypeOption> Items { get; } = new[]
+    {
+        new ExamSourceTypeOption { Value = ExamSourceType.Url,  Label = "URL 链接",  Glyph = "\uE71B" },
+        new ExamSourceTypeOption { Value = ExamSourceType.File, Label = "本地文件",  Glyph = "\uE8E5" }
+    };
+
+    public ExamSourceTypeOption? Find(ExamSourceType value)
+    {
+        foreach (var opt in Items)
+        {
+            if (opt.Value == value) return opt;
+        }
+        return null;
+    }
+}
+
+/// <summary>
+/// 把 <see cref="ExamSourceType"/> 转换为对应的 <see cref="ExamSourceTypeOption"/>。
+/// </summary>
+public sealed class ExamSourceTypeEnumToOptionConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not ExamSourceType t) return null;
+        if (parameter is ExamSourceTypeOptionsProvider p) return p.Find(t);
+        // 兜底：避免 XAML 里忘了带 ConverterParameter 时整列变空
+        return t == ExamSourceType.Url
+            ? new ExamSourceTypeOption { Value = ExamSourceType.Url,  Label = "URL 链接",  Glyph = "\uE71B" }
+            : new ExamSourceTypeOption { Value = ExamSourceType.File, Label = "本地文件",  Glyph = "\uE8E5" };
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is ExamSourceTypeOption opt) return opt.Value;
+        return BindingOperations.DoNothing;
+    }
+}
+
+/// <summary>
+/// 把 <see cref="ExamSourceTypeOption"/> 转换回 <see cref="ExamSourceType"/>，目前未被使用（保留以备绑定反向场景）。
+/// </summary>
+public sealed class ExamSourceTypeOptionToEnumConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return value is ExamSourceTypeOption opt ? opt.Value : null;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return BindingOperations.DoNothing;
     }
 }

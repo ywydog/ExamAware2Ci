@@ -7,26 +7,40 @@
              xmlns:local="using:ExamAware2Ci.Controls.Automations.ActionSettingsControls"
              xmlns:models="using:ExamAware2Ci.Models.Automations.Actions"
              mc:Ignorable="d">
+    <UserControl.Resources>
+        <!-- ComboBox 数据源与 Enum/Option 转换器（与 RuleSettingsControl 保持同一套模式） -->
+        <local:ExamSourceTypeOptionsProvider x:Key="SourceTypeOptions" />
+        <local:ExamSourceTypeEnumToOptionConverter x:Key="SourceTypeEnumToOption" />
+        <local:ExamSourceTypeOptionToEnumConverter x:Key="SourceTypeOptionToEnum" />
+    </UserControl.Resources>
+
     <StackPanel Orientation="Vertical" VerticalAlignment="Center" Spacing="6"
                 DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=local:PlayExamActionSettingsControl}}">
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <TextBlock VerticalAlignment="Center">来源类型：</TextBlock>
-            <ComboBox VerticalAlignment="Center" Width="120"
-                      SelectedIndex="{Binding Settings.SourceType}">
-                <ComboBoxItem>
-                    <ci:IconText Glyph="&#xE71B;" Text="URL 链接"/>
-                </ComboBoxItem>
-                <ComboBoxItem>
-                    <ci:IconText Glyph="&#xE8E5;" Text="本地文件"/>
-                </ComboBoxItem>
+            <ComboBox VerticalAlignment="Center" Width="140"
+                      ItemsSource="{Binding Source={StaticResource SourceTypeOptions}, Path=Items}"
+                      SelectedItem="{Binding Settings.SourceType,
+                                              Converter={StaticResource SourceTypeEnumToOption},
+                                              ConverterParameter={StaticResource SourceTypeOptions}}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
             </ComboBox>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <TextBox VerticalAlignment="Center"
+            <!--
+                UpdateSourceTrigger=PropertyChanged：让 TextBox 边输入边回写 Settings.Source，
+                避免"测试"按钮在 TextBox 还没失焦时拿到旧值。
+            -->
+            <TextBox x:Name="SourceBox"
+                     VerticalAlignment="Center"
                      Width="380"
                      Watermark="{Binding Settings.SourceType, Converter={x:Static local:SourceWatermarkConverter.Instance}}"
-                     Text="{Binding Settings.Source}" />
+                     Text="{Binding Settings.Source, UpdateSourceTrigger=PropertyChanged}" />
             <Button VerticalAlignment="Center"
                     Name="BtnBrowse"
                     Click="BtnBrowse_Click"

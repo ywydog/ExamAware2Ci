@@ -119,4 +119,15 @@ public class PlayExamActionSettingsValidationTests
         var s = new PlayExamActionSettings { SourceType = ExamSourceType.Url, Source = url };
         Assert.Null(s.Validate());
     }
+
+    /// <summary>
+    /// 显式锁定 <see cref="ExamSourceType"/> 数值。设置会被序列化进配置 JSON，
+    /// 一旦数值被改，旧的 Profile 文件会反序列化到错误的模式，所以需要钉死。
+    /// </summary>
+    [Fact]
+    public void ExamSourceType_NumericValues_ArePinned()
+    {
+        Assert.Equal(0, (int)ExamSourceType.Url);
+        Assert.Equal(1, (int)ExamSourceType.File);
+    }
 }

@@ -2,10 +2,16 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ExamAware2Ci.Models.Automations.Actions;
 
+/// <summary>
+/// 行动"放映考试"的数据来源类型。
+/// 显式赋值避免日后插入新成员时索引错位（被持久化到配置文件中的旧值会失效）。
+/// </summary>
 public enum ExamSourceType
 {
-    Url,
-    File
+    /// <summary>远程配置 URL（http/https）。</summary>
+    Url = 0,
+    /// <summary>本地考试档案（.ea2 / .json）。</summary>
+    File = 1
 }
 
 public partial class PlayExamActionSettings : ObservableRecipient
