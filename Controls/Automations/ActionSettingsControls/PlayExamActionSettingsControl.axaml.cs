@@ -33,24 +33,62 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
     {
         var window = TopLevel.GetTopLevel(this) as Window;
         if (window == null) return;
+        var sp = window.StorageProvider;
+
+        // 优先从当前 Source 所在目录继续浏览，避免每次都从根目录重新找。
+        // 只在 SourceType=File 且文件确实存在时尝试；URL 或空值就回退到默认起始位置。
+        IStorageFolder? suggestedStart = null;
+        try
+        {
+            if (Settings.SourceType == ExamSourceType.File &&
+                !string.IsNullOrWhiteSpace(Settings.Source) &&
+                System.IO.File.Exists(Settings.Source))
+            {
+                var dir = System.IO.Path.GetDirectoryName(Settings.Source);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    suggestedStart = await sp.TryGetFolderFromPathAsync(new System.Uri(dir));
+                }
+            }
+        }
+        catch
+        {
+            // 取不到起始目录时静默回退——继续用默认起始位置打开。
+            suggestedStart = null;
+        }
+
+        var wasUrlMode = Settings.SourceType == ExamSourceType.Url;
 
         var options = new FilePickerOpenOptions
         {
             AllowMultiple = false,
-            Title = Settings.SourceType == ExamSourceType.File
-                ? "选择考试档案文件"
-                : "选择本地考试档案（将自动切换为"本地文件"模式）",
-            FileTypeFilter = FilePickerTypes
+            Title = wasUrlMode
+                ? "选择本地考试档案（将自动切换为"本地文件"模式）"
+                : "选择考试档案文件",
+            FileTypeFilter = FilePickerTypes,
+            SuggestedStartLocation = suggestedStart
         };
 
-        var files = await window.StorageProvider.OpenFilePickerAsync(options);
+        var files = await sp.OpenFilePickerAsync(options);
         if (files.Count == 0) return;
 
         var path = files[0].Path.LocalPath;
         // 不论当前模式是 URL 还是 File，选了本地文件就切到 File 模式
         Settings.SourceType = ExamSourceType.File;
         Settings.Source = path;
-        SetStatus($"已选择：{path}", isError: false);
+
+        // 选完立刻本地校验一次（不联网，只查文件存在 + 扩展名），省一次手动点"测试"。
+        var error = Settings.Validate();
+        if (error == null)
+        {
+            var prefix = wasUrlMode ? "✓ 已切换到本地文件模式并通过校验：" : "✓ 已选择并通过校验：";
+            SetStatus(prefix + path, isError: false);
+        }
+        else
+        {
+            var prefix = wasUrlMode ? "已切换到本地文件模式，但校验失败：" : "已选择，但校验失败：";
+            SetStatus(prefix + path + $"（{error}）", isError: true);
+        }
     }
 
     private async void BtnTest_Click(object? sender, RoutedEventArgs e)
