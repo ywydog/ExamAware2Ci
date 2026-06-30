@@ -63,7 +63,7 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
         {
             AllowMultiple = false,
             Title = wasUrlMode
-                ? "选择本地考试档案（将自动切换为"本地文件"模式）"
+                ? "选择本地考试档案（将自动切换为「本地文件」模式）"
                 : "选择考试档案文件",
             FileTypeFilter = FilePickerTypes,
             SuggestedStartLocation = suggestedStart
