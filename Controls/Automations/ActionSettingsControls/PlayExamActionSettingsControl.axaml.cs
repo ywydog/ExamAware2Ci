@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -94,7 +93,8 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
     private async void BtnTest_Click(object? sender, RoutedEventArgs e)
     {
         // 强制让 TextBox 把当前内容提交到绑定源，避免刚粘贴/输入完没失焦时取到旧值。
-        SourceBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        // Avalonia 11 中获取绑定表达式要用静态方法 BindingOperations.GetBindingExpressionBase。
+        BindingOperations.GetBindingExpressionBase(SourceBox, TextBox.TextProperty)?.UpdateSource();
 
         SetStatus("正在检查…", isError: false, busy: true);
         try
@@ -122,7 +122,7 @@ public partial class PlayExamActionSettingsControl : ActionSettingsControlBase<P
     {
         Settings.Source = string.Empty;
         // 清掉焦点，避免 TextBox 残留上一次输入但没提交
-        FocusManager.Instance?.Focus(null);
+        TopLevel.GetTopLevel(this)?.FocusManager?.ClearFocus();
         SetStatus(null, isError: false);
     }
 
