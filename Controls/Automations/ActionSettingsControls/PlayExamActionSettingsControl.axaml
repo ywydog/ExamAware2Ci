@@ -31,35 +31,37 @@
             </ComboBox>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-            <!--
-                UpdateSourceTrigger=PropertyChanged：让 TextBox 边输入边回写 Settings.Source，
-                避免"测试"按钮在 TextBox 还没失焦时拿到旧值。
-            -->
+        <!--
+            用 Grid 而非水平 StackPanel：
+            TextBox 用 * 占满剩余空间，三个按钮用 Auto 按需收缩，
+            这样无论父容器多窄，按钮都不会被水平裁出可视区。
+        -->
+        <Grid VerticalAlignment="Center" ColumnSpacing="6"
+              ColumnDefinitions="*,Auto,Auto,Auto">
             <TextBox x:Name="SourceBox"
+                     Grid.Column="0"
                      VerticalAlignment="Center"
-                     Width="380"
                      Watermark="{Binding Settings.SourceType, Converter={x:Static local:SourceWatermarkConverter.Instance}}"
                      Text="{Binding Settings.Source, UpdateSourceTrigger=PropertyChanged}" />
-            <Button VerticalAlignment="Center"
+            <Button Grid.Column="1"
                     Name="BtnBrowse"
                     Click="BtnBrowse_Click"
                     ToolTip.Tip="从本机选择一个 .ea2 / .json 考试档案">
-                <ci:IconText Glyph="&#xE8E5;" Text="浏览…"/>
+                <ci:IconText Glyph="&#xE8E5;" Text="浏览"/>
             </Button>
-            <Button VerticalAlignment="Center"
+            <Button Grid.Column="2"
                     Name="BtnTest"
                     Click="BtnTest_Click"
                     ToolTip.Tip="立即检查该来源是否可用（不会触发放映）">
                 <ci:IconText Glyph="&#xE73E;" Text="测试"/>
             </Button>
-            <Button VerticalAlignment="Center"
+            <Button Grid.Column="3"
                     Name="BtnClear"
                     Click="BtnClear_Click"
                     ToolTip.Tip="清空当前来源">
                 <ci:IconText Glyph="&#xE74D;" Text="清空"/>
             </Button>
-        </StackPanel>
+        </Grid>
 
         <TextBlock VerticalAlignment="Center"
                    Name="StatusText"
